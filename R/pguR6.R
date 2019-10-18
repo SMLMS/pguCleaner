@@ -38,8 +38,17 @@ pgu.fileDesign <- R6::R6Class("pgu.fileDesign",
 ####################
 # public functions
 ####################
-# pgu.fileDesign$set("public", "splitFileName", function(){
-#   self$setBaseName <- tools::file_path_sans_ext(basename(self$fileName))
-#   self$setFolderName <- dirname(self$fileName)
-#   self$setSuffix <- tools::file_ext(self$fileName)
-# })
+pgu.optimizer$set("public", "resetOptParameter", function(data = "tbl_df"){
+  
+})
+##################
+# helper functions
+##################
+pgu.model$set("public", "featureIdx", function(feature = "character"){
+  idx <- match(feature, self$modelParameter[["features"]])
+  if(is.na(idx)){
+    rString <- sprintf("\nWarning in pgu.optimizer: feature %s is not known\n",
+                       feature)
+    cat(rString)
+  }
+  return(idx)
