@@ -32,9 +32,12 @@ pgu.transformator <- R6::R6Class("pgu.transformator",
                               ###################
                                public = list(
                                  initialize = function(data = "tbl_df"){
+                                   if(class(data) != "tbl_df"){
+                                     data <- tibble::tibble(names <- "none",
+                                                            values <- c(NA))
+                                   }
                                    private$.trafoAlphabet <-c("none", "log2", "logNorm", "log10", "squareRoot", "cubeRoot", "arcsine", "inverse", "tukeyLOP", "boxCox")
                                    self$resetTrafoParameter(data)
-                                   #self$resetModelParameter()
                                  },
                                  finalize = function(){
                                    print("Instance of pgu.transformator removed from heap")

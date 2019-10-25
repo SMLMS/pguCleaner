@@ -113,9 +113,7 @@ pgu.missings$set("public", "filterFeatures", function(data = "tbl_df"){
 pgu.missings$set("public", "missingsIdxByFeature", function(featureName = "character"){
   self$missings %>%
     dplyr::filter(features == featureName) %>%
-    dplyr::select(row) %>%
-    unlist() %>%
-    unname() %>%
+    dplyr::pull(row) %>%
     as.integer() %>%
     return()
 })

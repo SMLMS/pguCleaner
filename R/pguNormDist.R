@@ -3,7 +3,7 @@ library("bbmle")
 library("tidyverse")
 library("stats")
 library("nortest")
-source(file = "R/pguGlobals.R", local=TRUE)
+source(file = "../R/pguGlobals.R", local=TRUE)
 
 pgu.normDist <- R6::R6Class("pgu.normDist",
                               ####################

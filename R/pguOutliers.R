@@ -58,7 +58,7 @@ pgu.outliers <- R6::R6Class("pgu.outliers",
                                    return(private$.minSamples)
                                  },
                                  outliersStatistics = function(){
-                                   return(private$.outliersStatistic)
+                                   return(private$.outliersStatistics)
                                  }
                                  ),
                               ###################
@@ -86,6 +86,7 @@ pgu.outliers <- R6::R6Class("pgu.outliers",
                                    cat(uString)
                                    print(self$outliers)
                                    print(self$outliersParameter)
+                                   print(self$outliersStatistics)
                                    cat("\n\n")
                                    invisible(self)
                                  }
@@ -123,6 +124,20 @@ pgu.outliers$set("public", "featureIdx", function(feature = "character"){
     cat(rString)
   }
   return(idx)
+})
+
+pgu.outliers$set("public", "filterFeatures", function(data = "tbl_df"){
+  data %>%
+    dplyr::select(private$.outliersParameter[["features"]]) %>%
+    return()
+})
+
+pgu.outliers$set("public", "outliersIdxByFeature", function(featureName = "character"){
+  self$outliers %>%
+    dplyr::filter(feature == featureName) %>%
+    dplyr::pull(measurement) %>%
+    as.integer() %>%
+    return()
 })
 
 #################
@@ -165,5 +180,283 @@ pgu.outliers$set("public", "findOutliers", function(data = "tbl_df"){
       foundOutlier <- self$runGrubbs(data, feature)
     }
   }
-  #.self$calcStatistics(obj = obj)
+  self$outlierStatistics(data)
+})
+
+####################
+# outlier statistics
+####################
+pgu.outliers$set("public", "outlierStatistics", function(data = "tbl_df"){
+  absCount <- data %>%
+    self$filterFeatures() %>%
+    dplyr::summarise_all(~sum(!is.na(.)))
+  private$.outliersStatistics <- tibble::tibble(features = colnames(absCount),
+                                              absCount = absCount %>%
+                                                unlist() %>%
+                                                as.numeric())
+  outlierCount <- c(rep(0.0, length(self$outliersParameter[["features"]])))
+  minCount <- c(rep(0.0, length(self$outliersParameter[["features"]])))
+  maxCount <- c(rep(0.0, length(self$outliersParameter[["features"]])))
+  if(nrow(self$outliers) > 0){
+    for (i in seq(from = 1,to = length(self$outliersParameter[["features"]]), by =1)) {
+      outlierCount[i] <- sum(self$outliers["feature"] == self$outliersParameter[[i, "features"]])
+      minCount[i] <- self$outliers %>%
+        dplyr::filter(type == "min" & feature == self$outliersParameter[[i, "features"]]) %>%
+        dplyr::select("feature") %>%
+        dplyr::count() %>%
+        unlist() %>%
+        as.numeric()
+      maxCount[i] <- self$outliers %>%
+        dplyr::filter(type == "max" & feature == self$outliersParameter[[i, "features"]]) %>%
+        dplyr::select("feature") %>%
+        dplyr::count() %>%
+        unlist() %>%
+        as.numeric()
+      
+    }
+  }
+  private$.outliersStatistics <- self$outliersStatistics %>%
+    dplyr::mutate(outlierCount = outlierCount,
+                  low = minCount,
+                  high = maxCount,
+                  outlierFraction = 100* outlierCount/absCount) %>%
+    dplyr::mutate(minFraction = 100 * low/absCount,
+                  maxFraction = 100 * high/absCount)
+})
+
+#################
+# handle outliers
+#################
+pgu.outliers$set("public", "insertImputationSites", function(data = "tbl_df"){
+  for(feature in self$outliersParameter[["features"]]){
+    indices <- self$outliers %>%
+      dplyr::filter(!!feature == feature) %>%
+      dplyr::pull(measurement) %>%
+      as.integer()
+    data <- data %>%
+      dplyr::mutate(!!feature := replace(x = !!as.name(feature),
+                                         list = indices,
+                                         values = NA))
+  }
+  return(data)
+})
+
+pgu.outliers$set("public", "handleOutliers", function(data = "tbl_df"){
+  cleanedData <- switch(self$cleaningAgent,
+                       "none" = {data},
+                       "median" = {data %>%
+                         self$filterFeatures() %>%
+                         self$insertImputationSites() %>%
+                         self$cleanByMedian()},
+                       "mean" = {data %>%
+                         self$filterFeatures() %>%
+                         self$insertImputationSites() %>%
+                         self$cleanByMean()},
+                       "mu" = {data %>%
+                         self$filterFeatures() %>%
+                         self$insertImputationSites() %>%
+                         self$cleanByExpectationValue()},
+                       "mc" = {data %>%
+                         self$filterFeatures() %>%
+                         self$insertImputationSites() %>%
+                         self$cleanByMC()},
+                       "knn" = {data %>%
+                         self$filterFeatures() %>%
+                         self$insertImputationSites() %>%
+                         self$cleanByKnn()},
+                       "pmm" = {data %>%
+                         self$filterFeatures() %>%
+                         self$insertImputationSites() %>%
+                         self$cleanByPmm()},
+                       "cart" = {data %>%
+                         self$filterFeatures() %>%
+                         self$insertImputationSites() %>%
+                         self$cleanByCart()},
+                       "rf" = {data %>%
+                         self$filterFeatures() %>%
+                         self$insertImputationSites() %>%
+                         self$cleanByRf()},
+                       "amelia" = {data %>%
+                         self$filterFeatures() %>%
+                         self$insertImputationSites() %>%
+                         self$cleanByAmelia()}
+  )
+  data %>%
+    dplyr::select(-dplyr::one_of(self$outliersParameter[["features"]])) %>%
+    dplyr::bind_cols(cleanedData) %>%
+    dplyr::select(colnames(data)) %>%
+    return()
+})
+
+pgu.outliers$set("public", "cleanByMedian", function(data = "tbl_df"){
+  for (feature in self$outliersParameter[["features"]]){
+    indices <- self$outliersIdxByFeature(feature)
+    data <- data %>%
+      dplyr::mutate(!!feature := replace(!!as.name(feature),
+                                         indices,
+                                         stats::median(!!as.name(feature), na.rm = TRUE)))
+  }
+  return(data)
+})
+
+pgu.outliers$set("public", "cleanByMean", function(data = "tbl_df"){
+  for (feature in self$outliersParameter[["features"]]){
+    indices <- self$outliersIdxByFeature(feature)
+    data <- data %>%
+      dplyr::mutate(!!feature := replace(!!as.name(feature),
+                                         indices,
+                                         mean(!!as.name(feature), na.rm = TRUE)))
+  }
+  return(data)
+})
+
+pgu.outliers$set("public", "cleanByExpectationValue", function(data = "tbl_df"){
+  for (feature in self$outliersParameter[["features"]]){
+    indices <- self$outliersIdxByFeature(feature)
+    data <- data %>%
+      dplyr::mutate(!!feature := replace(!!as.name(feature),
+                                         indices,
+                                         0.0))
+  }
+  return(data)
+})
+
+pgu.outliers$set("public", "cleanByMC", function(data = "tbl_df"){
+  for (feature in self$outliersParameter[["features"]]){
+    indices <- self$outliersIdxByFeature(feature)
+    mcVal <- stats::rnorm(n = length(indices),
+                          mean = 0.0,
+                          sd = 1.0)
+    data <- data %>%
+      dplyr::mutate(!!feature := replace(!!as.name(feature),
+                                         indices,
+                                         mcVal))
+  }
+  return(data)
+})
+
+
+pgu.outliers$set("public", "cleanByKnn", function(data = "tbl_df"){
+  cleanedData <- data %>%
+    as.data.frame() %>%
+    DMwR::knnImputation(k=3,
+                        scale = TRUE,
+                        meth = "weighAvg",
+                        distData = NULL) %>%
+      tibble::as_tibble()
+    
+    for (feature in self$outliersParameter[["features"]]){
+      indices <- self$outliersIdxByFeature(feature)
+      data %>%
+        dplyr::slice(indices) %>%
+        dplyr::pull(feature)
+
+      
+      data <- data %>%
+        dplyr::mutate(!!feature := replace(!!as.name(feature),
+                                           indices,
+                                           cleanedData %>%
+                                             dplyr::slice(indices) %>%
+                                             dplyr::pull(feature)))
+    }
+    return(data)
+})
+
+
+pgu.outliers$set("public", "cleanByPmm", function(data = "tbl_df"){
+  cleanedData <- data %>%
+    as.data.frame() %>%
+    mice::mice(m=5,
+               maxit = 5,
+               method = "pmm",
+               seed = self$seed) %>%
+    mice::complete(action = 1) %>%
+    tibble::as_tibble()
+  
+  for (feature in self$outliersParameter[["features"]]){
+    indices <- self$outliersIdxByFeature(feature)
+    data %>%
+      dplyr::slice(indices) %>%
+      dplyr::pull(feature)
+    
+    data <- data %>%
+      dplyr::mutate(!!feature := replace(!!as.name(feature),
+                                         indices,
+                                         cleanedData %>%
+                                           dplyr::slice(indices) %>%
+                                           dplyr::pull(feature)))
+  }
+  return(data)
+})
+
+pgu.outliers$set("public", "cleanByCart", function(data = "tbl_df"){
+  cleanedData <- data %>%
+    as.data.frame() %>%
+    mice::mice(minbucket = 3,
+               method = "cart",
+               seed = self$seed) %>%
+    mice::complete(action = 1) %>%
+    tibble::as_tibble()
+  
+  for (feature in self$outliersParameter[["features"]]){
+    indices <- self$outliersIdxByFeature(feature)
+    data %>%
+      dplyr::slice(indices) %>%
+      dplyr::pull(feature)
+    
+    data <- data %>%
+      dplyr::mutate(!!feature := replace(!!as.name(feature),
+                                         indices,
+                                         cleanedData %>%
+                                           dplyr::slice(indices) %>%
+                                           dplyr::pull(feature)))
+  }
+  return(data)
+})
+
+pgu.outliers$set("public", "cleanByRf", function(data = "tbl_df"){
+  cleanedData <- data %>%
+    as.data.frame() %>%
+    mice::mice(ntree = 3,
+               method = "rf",
+               seed = self$seed) %>%
+    mice::complete(action = 1) %>%
+    tibble::as_tibble()
+  
+  for (feature in self$outliersParameter[["features"]]){
+    indices <- self$outliersIdxByFeature(feature)
+    data %>%
+      dplyr::slice(indices) %>%
+      dplyr::pull(feature)
+    
+    data <- data %>%
+      dplyr::mutate(!!feature := replace(!!as.name(feature),
+                                         indices,
+                                         cleanedData %>%
+                                           dplyr::slice(indices) %>%
+                                           dplyr::pull(feature)))
+  }
+  return(data)
+})
+
+pgu.outliers$set("public", "cleanByAmelia", function(data = "tbl_df"){
+  ameliaOutput <- data %>%
+    Amelia::amelia(m = 1, parallel = "multicore", ncpus = 8)
+  cleanedData <- ameliaOutput$imputations[[1]] %>%
+    tibble::as_tibble()
+  
+  for (feature in self$outliersParameter[["features"]]){
+    indices <- self$outliersIdxByFeature(feature)
+    data %>%
+      dplyr::slice(indices) %>%
+      dplyr::pull(feature)
+    
+    data <- data %>%
+      dplyr::mutate(!!feature := replace(!!as.name(feature),
+                                         indices,
+                                         cleanedData %>%
+                                           dplyr::slice(indices) %>%
+                                           dplyr::pull(feature)))
+  }
+  return(data)
 })

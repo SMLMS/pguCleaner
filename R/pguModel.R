@@ -1,6 +1,6 @@
 library("R6")
 library("tidyverse")
-source(file = "R/pguNormDist.R", local=TRUE)
+source(file = "../R/pguNormDist.R", local=TRUE)
 
 pgu.model <- R6::R6Class("pgu.model",
                               ####################
@@ -26,8 +26,11 @@ pgu.model <- R6::R6Class("pgu.model",
                               ###################
                                public = list(
                                  initialize = function(data = "tbl_df"){
-                                   self$resetModelParameter(data)
-                                   self$resetModelList(data)
+                                   if(class(data) != "tbl_df"){
+                                     data <- tibble::tibble(names <- "none",
+                                                            values <- c(NA))
+                                   }
+                                   self$resetModel(data)
                                  },
                                  finalize = function(){
                                    print("Instance of pgu.model removed from heap")
@@ -87,6 +90,11 @@ pgu.model$set("public", "resetModelList", function(data = "tbl_df"){
     }
   }
   private$.modelList <- results
+})
+
+pgu.model$set("public", "resetModel", function(data = "tbl_df"){
+  self$resetModelParameter(data)
+  self$resetModelList(data)
 })
 
 ##################

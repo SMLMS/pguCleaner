@@ -31,6 +31,10 @@ pgu.filter <- R6::R6Class("pgu.filter",
                           ###################
                           public = list(
                             initialize = function(data = "tbl_df"){
+                              if(class(data) != "tbl_df"){
+                                data <- tibble::tibble(names <- "none",
+                                                       values <- c(NA))
+                              }
                               data %>%
                                 self$resetFilter()
                             },
@@ -54,14 +58,24 @@ pgu.filter <- R6::R6Class("pgu.filter",
 )
                           
                               
-####################
-# public functions
-####################
-pgu.filter$set("public", "resetFilter", function(data = "tbl_df"){
+#################
+# reset functions
+#################
+pgu.filter$set("public", "resetColIdx", function(data = "tbl_df"){
   self$setColIdx <- seq(1,ncol(data), 1)
-  self$setRowIdx <- seq(1,nrow(data),1)
 })
 
+pgu.filter$set("public", "resetRowIdx", function(data = "tbl_df"){
+  self$setRowIdx <- seq(1,nrow(data), 1)
+})
+
+pgu.filter$set("public", "resetFilter", function(data = "tbl_df"){
+  self$resetColIdx(data)
+  self$resetRowIdx(data)
+})
+##################
+# filter functions
+##################
 pgu.filter$set("public", "filter", function(data = "tbl_df"){
   data %>%
     dplyr::select(self$colIdx) %>%

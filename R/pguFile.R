@@ -6,7 +6,7 @@ pgu.file <- R6::R6Class("pgu.file",
                         # instance variables
                         ####################
                         private = list(
-                          #.uploadFileName = "character",
+                          .uploadFileName = "character",
                           .fileName = "character",
                           .baseName = "character",
                           .folderName = "character",
@@ -25,12 +25,12 @@ pgu.file <- R6::R6Class("pgu.file",
                         # accessor methods
                         ##################
                         active = list(
-                          # uploadFileName = function(){
-                          #   return(private$.uploadFileName)
-                          # },
-                          # setUploadFileName = function(val = "character"){
-                          #   private$.uploadFileName <- val
-                          # },
+                          uploadFileName = function(){
+                            return(private$.uploadFileName)
+                          },
+                          setUploadFileName = function(val = "character"){
+                            private$.uploadFileName <- val
+                          },
                           fileName = function(){
                             return(private$.fileName)
                           },
@@ -97,12 +97,13 @@ pgu.file <- R6::R6Class("pgu.file",
                         ###################
                         public = list(
                           initialize = function(){
-                            #private$.uploadFileName <- character(length(0))
+                            private$.uploadFileName <- character(length(0))
                             private$.fileName <- character(length(0))
                             private$.baseName <- character(length(0))
                             private$.folderName <- character(length(0))
                             private$.suffix <- character(length(0))
                             private$.content <- character(length(0))
+                            private$.sheetIndex <- 0
                             private$.separator <- character(length(0))
                             private$.skipRows <- 0
                             private$.header = FALSE
@@ -115,7 +116,8 @@ pgu.file <- R6::R6Class("pgu.file",
                           # print instance variables
                           ##########################
                           print = function(){
-                            rString <- sprintf("\npgu.file\nfileName: %s\nbaseName: %s\nfolderName: %s\nsuffix: %s\ncontent: %s\nsheetIndex: %i\nseparator: %s\nskipRows: %i\nheader: %s\nnchar: %s\n\n",
+                            rString <- sprintf("\npgu.file\nuploadFileName: %s\nfileName: %s\nbaseName: %s\nfolderName: %s\nsuffix: %s\ncontent: %s\nsheetIndex: %i\nseparator: %s\nskipRows: %i\nheader: %s\nnchar: %s\n\n",
+                                               self$uploadFileName,
                                                self$fileName,
                                                self$baseName,
                                                self$folderName,

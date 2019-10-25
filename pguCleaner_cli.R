@@ -53,7 +53,7 @@ main <- function(){
   
   print(importer$suffixIsKnown(obj = inFile))
   rawData <- pgu.data$new(importer$importHdf5(obj = inFile))
-  print(rawData)
+  print(rawData$information())
   # print(head(rawData))
   # filterSet <- pgu.filter$new(data = rawData)
   # colIdx <- seq(1,3,1)

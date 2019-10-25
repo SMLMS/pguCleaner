@@ -1,7 +1,7 @@
 library("R6")
 library("tidyverse")
-source(file = "R/pguTransformator.R", local=TRUE)
-source(file = "R/pguModel.R", local=TRUE)
+source(file = "../R/pguTransformator.R", local=TRUE)
+source(file = "../R/pguModel.R", local=TRUE)
 
 pgu.optimizer <- R6::R6Class("pgu.optimizer",
                               ####################
@@ -32,9 +32,11 @@ pgu.optimizer <- R6::R6Class("pgu.optimizer",
                               ###################
                               public = list(
                                 initialize = function(data = "tbl_df"){
-                                  self$resetFeatures(data)
-                                  self$resetOptParameter(data)
-                                  self$resetOptTypes(data)
+                                  if(class(data) != "tbl_df"){
+                                    data <- tibble::tibble(names <- "none",
+                                                           values <- c(NA))
+                                  }
+                                  self$resetOptimizer(data)
                                 },
                                 finalize = function(){
                                   print("Instance of pgu.optimizer removed from heap")
@@ -97,6 +99,12 @@ pgu.optimizer$set("public", "resetOptTypes", function(data = "tbl_df"){
   p.anderson <- c(rep("none", length(features)))
   private$.optTypes <- tibble::tibble(features, mirrorLogic, logLikelihood, bic, aic, aicc, rmse,
                                       w.shapiro, p.shapiro, d.kolmogorow, p.kolmogorow, a.anderson, p.anderson)
+})
+
+pgu.optimizer$set("public", "resetOptimizer", function(data = "tbl_df"){
+  self$resetFeatures(data)
+  self$resetOptParameter(data)
+  self$resetOptTypes(data)
 })
 ##################
 # helper functions

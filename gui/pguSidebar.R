@@ -1,0 +1,52 @@
+library(shiny)
+library(shinydashboard)
+
+sidebar <- shinydashboard::dashboardSidebar(
+  shinydashboard::sidebarMenu(
+    id = "menue",
+    shinydashboard::menuItem("Import",
+                             tabName = "tab_import",
+                             icon = shiny::icon("download")),
+    shinydashboard::menuItem("Filter",
+                             tabName = "tab_filter",
+                             icon = shiny::icon("filter"),
+                             badgeLabel = "x",
+                             badgeColor = "red"),
+    shinydashboard::menuItem("Explore",
+                             tabName = "tab_explore",
+                             icon = shiny::icon("microscope"),
+                             badgeLabel = "x",
+                             badgeColor = "red"),
+    shinydashboard::menuItem("Model",
+                             tabName = "tab_model",
+                             icon = shiny::icon("connectdevelop"),
+                             badgeLabel = "x",
+                             badgeColor = "red"),
+    shinydashboard::menuItem("Fill Missings",
+                             tabName = "tab_tidy",
+                             icon = shiny::icon("fill-drip"),
+                             badgeLabel = "x",
+                             badgeColor = "red"),
+    shinydashboard::menuItem("Revise",
+                             tabName = "tab_revise",
+                             icon = shiny::icon("wrench"),
+                             badgeLabel = "x",
+                             badgeColor = "red"),
+    shinydashboard::menuItem("Correlate",
+                             tabName = "tab_correlate",
+                             icon = shiny::icon("chart-line"),
+                             badgeLabel = "x",
+                             badgeColor = "red"),
+    shinydashboard::menuItem("Overview",
+                             tabName = "tab_overview",
+                             icon = shiny::icon("chart-pie"),
+                             badgeLabel = "x",
+                             badgeColor = "red"),
+    shinydashboard::menuItem("Export",
+                             tabName = "tab_export",
+                             icon = shiny::icon("upload"),
+                             badgeLabel = "x",
+                             badgeColor = "red")
+
+  )
+)
