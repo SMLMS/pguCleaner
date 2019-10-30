@@ -54,6 +54,10 @@ pgu.missings <- R6::R6Class("pgu.missings",
                                    private$.cleaningAgentAlphabet <- c("none", "median", "mean", "mu", "mc", "knn", "pmm", "cart", "rf", "amelia", "amelia_bound")
                                    self$setSeed <- 42.0
                                    self$setCleaningAgent <- self$cleaningAgentAlphabet[1]
+                                   if(class(data)[1] != "tbl_df"){
+                                     data <- tibble::tibble(names <- "none",
+                                                            values <- c(NA))
+                                   }
                                    self$resetMissingsParameter(data)
                                  },
                                  finalize = function(){
@@ -117,6 +121,22 @@ pgu.missings$set("public", "missingsIdxByFeature", function(featureName = "chara
     as.integer() %>%
     return()
 })
+
+pgu.missings$set("public", "nanFeatureList", function(data = "tbl_df"){
+  nanFeature <- c(rep("complete", nrow(data)))
+  if (nrow(self$missings) > 0) {
+    for(i in seq(from = 1,to = nrow(self$missings), by =1)){
+     if (grepl("complete", nanFeature[self$missings[[i,"row"]]])){
+        nanFeature[self$missings[[i,"row"]]] <- self$missings[[i, "features"]]
+      }
+      else{
+        nanFeature[self$missings[[i,"row"]]] <- "multiple"
+     }
+    }
+  }
+  return(nanFeature)
+})
+
 #####################
 # missings statistics
 #####################
@@ -322,7 +342,7 @@ pgu.missings$set("public", "nanPositives", function(data = "tbl_df"){
 ################
 # plot functions
 ################
-pgu.missings$set("public", "nanHeatmap", function(){
+pgu.missings$set("public", "nanHeatMap", function(){
   p <- plot(self$amv,
             col=c('navyblue','red'),
             numbers=TRUE,
@@ -332,4 +352,35 @@ pgu.missings$set("public", "nanHeatmap", function(){
             gap=3,
             ylab=c("Histogram of missing data","Pattern"))
   return(p)
+})
+
+pgu.missings$set("public", "featureBarPlot", function(data = "tbl_df", feature = "character"){
+    p <- data %>%
+      ggplot2::ggplot(mapping = ggplot2::aes_string(x=feature), na.rm=TRUE) +
+      ggplot2::geom_bar(stat = "bin")
+    return(p)
+})
+
+pgu.missings$set("public", "featureBoxPlotWithSubset", function(data = "tbl_df", feature = "character"){
+    nanFeature <- self$nanFeatureList(data)
+    p <- data %>%
+      dplyr::select(feature) %>%
+      dplyr::mutate(nanFeature = nanFeature) %>%
+      tidyr::gather_(key="feature", value="measurement", feature) %>%
+      ggplot2::ggplot(mapping=ggplot2::aes_string(x="feature",y="measurement"), na.rm=TRUE)+
+      ggplot2::geom_boxplot(na.rm=TRUE)+
+      ggplot2::geom_jitter(ggplot2::aes(colour=nanFeature), na.rm=TRUE)
+    return(p)
+})
+
+pgu.missings$set("public", "featurePlot", function(data = "tbl_df", feature = "character"){
+    p1 <- self$featureBoxPlotWithSubset(data, feature) +
+      ggplot2::theme(legend.position = c(0.9, 0.9),
+                     legend.key = ggplot2::element_blank(),
+                     legend.background = ggplot2::element_blank())
+    p2 <- self$featureBarPlot(data, feature) +
+      ggplot2::scale_x_discrete(position = "top") +
+      ggplot2::coord_flip()
+    p <- gridExtra::grid.arrange(p1,p2, layout_matrix = rbind(c(1,1,2),c(1,1,2)))
+    return(p)
 })

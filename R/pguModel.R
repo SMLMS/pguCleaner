@@ -26,7 +26,7 @@ pgu.model <- R6::R6Class("pgu.model",
                               ###################
                                public = list(
                                  initialize = function(data = "tbl_df"){
-                                   if(class(data) != "tbl_df"){
+                                   if(class(data)[1] != "tbl_df"){
                                      data <- tibble::tibble(names <- "none",
                                                             values <- c(NA))
                                    }
@@ -95,6 +95,15 @@ pgu.model$set("public", "resetModelList", function(data = "tbl_df"){
 pgu.model$set("public", "resetModel", function(data = "tbl_df"){
   self$resetModelParameter(data)
   self$resetModelList(data)
+  self$fitData()
+})
+
+pgu.model$set("public", "setNormDist", function(data = "pgu.normDist", feature = "character"){
+  idx <- match(feature, self$modelParameter[["features"]])
+  if(!is.na(idx)){
+    private$.modelList[feature] <- list(data)
+    self$logFitResultsFeature(feature)
+  }
 })
 
 ##################
@@ -117,6 +126,7 @@ pgu.model$set("public", "fitFeature", function(feature = "character"){
   idx <- match(feature, self$modelParameter[["features"]])
   if(!is.na(idx)){
     private$.modelList[[feature]]$fit()
+    self$logFitResultsFeature(feature)
   }
 })
 
@@ -165,10 +175,15 @@ pgu.model$set("public", "logFitResultsData", function(){
 ####################
 # compound functions
 ####################
-pgu.model$set("public", "fit", function(){
-  self$fitData()
-  self$logFitResultsData()
-})
+# pgu.model$set("public", "fitFeature", function(feature = "character"){
+#   self$fitFeature(feature)
+#   self$logFitResultsFeature(feature)
+# })
+# 
+# pgu.model$set("public", "fitData", function(){
+#   self$fitData()
+#   self$logFitResultsData()
+# })
 
 ############
 # scale data
@@ -215,10 +230,75 @@ pgu.model$set("public", "rescaleData", function(data = "tbl_df"){
   return(data)
 })
 
-###############
-# print results
-###############
+################
+# return results
+################
+pgu.model$set("public", "modelParameterData", function(){
+  self$modelParameter %>%
+    dplyr::select(features, mu:sigma) %>%
+    return()
+})
+
+pgu.model$set("public", "modelParameterFeature", function(feature = "character"){
+  idx <- self$featureIdx(feature)
+  self$modelParameter %>%
+    dplyr::slice(idx) %>%
+    dplyr::select(features, mu:sigma) %>%
+    return()
+})
+
+pgu.model$set("public", "modelQualityData", function(){
+  self$modelParameter %>%
+    dplyr::select(features, dataPoints:rmse) %>%
+    return()
+})
+
+pgu.model$set("public", "modelQualityFeature", function(feature = "character"){
+  idx <- self$featureIdx(feature)
+  self$modelParameter %>%
+    dplyr::slice(idx) %>%
+    dplyr::select(features, dataPoints:rmse) %>%
+    return()
+})
+
+pgu.model$set("public", "fitResultData", function(){
+  self$modelParameter %>%
+    dplyr::select(features, mu:rmse) %>%
+    return()
+})
+
+pgu.model$set("public", "fitResultFeature", function(feature = "character"){
+  idx <- self$featureIdx(feature)
+  self$modelParameter %>%
+    dplyr::slice(idx) %>%
+    dplyr::select(features, mu:rmse) %>%
+    return()
+})
+
+pgu.model$set("public", "testResultData", function(){
+  self$modelParameter %>%
+    dplyr::select(features, w.shapiro:p.anderson) %>%
+    return()
+})
+
+pgu.model$set("public", "testResultFeature", function(feature = "character"){
+  idx <- self$featureIdx(feature)
+  self$modelParameter %>%
+    dplyr::slice(idx) %>%
+    dplyr::select(features, w.shapiro:p.anderson) %>%
+    return()
+})
 
 ##############
 # plot results
 ##############
+pgu.model$set("public", "plotModel", function(feature = "character"){
+  idx <- self$featureIdx(feature)
+  model <- self$modelList[[idx]]
+  p1 <- model$plotHistogram()
+  p2 <- model$plotResiduals()
+  p3 <- model$plotResidualDist() + ggplot2::coord_flip()
+  p4 <- model$normalQQPlot()
+  p <- gridExtra::grid.arrange(p1,p2,p3,p4, layout_matrix = rbind(c(1,1,4),c(2,2,3)))
+  return(p)
+})

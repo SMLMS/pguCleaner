@@ -1,3 +1,4 @@
+library("tidyverse")
 ##################
 # Global functions
 ##################
@@ -13,4 +14,17 @@ dLogLikelihood = function(x="numeric", mu="numeric",sigma="numeric", log=TRUE){
 
 sLogLikelihood = function(mu="numeric", sigma="numeric"){
   bbmle::snorm(mean=mu, sd=sigma)
+}
+
+transformTibble = function(obj = "tbl_df"){
+  vNames <- colnames(obj)[-1]
+  cNames <- obj[[1,]]
+  obj[-1] %>%
+    as.data.frame() %>%
+    t() %>%
+    tibble::tibble() %>%
+    dplyr::rename_all(~ c(cNames)) %>%
+    dplyr::mutate(parameter = vNames) %>%
+    dplyr::select(parameter, dplyr::everything()) %>%
+    return()
 }

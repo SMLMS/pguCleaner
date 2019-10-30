@@ -2,10 +2,11 @@ library(shiny)
 library(shinydashboard)
 library(tidyverse)
 library(DT)
-library(promises)
-library(future)
-library(future.callr)
-plan(callr)
+#library(promises)
+#library(future)
+#library(future.callr)
+#plan(callr)
+source(file = "../R/pguGlobals.R", local=TRUE)
 source(file = "../R/pguFile.R", local=TRUE)
 source(file = "../R/pguImporter.R", local=TRUE)
 source(file = "../R/pguData.R", local=TRUE)
@@ -13,7 +14,9 @@ source(file = "../R/pguFilter.R", local=TRUE)
 source(file = "../R/pguPlot.R", local=TRUE)
 source(file = "../R/pguTransformator.R", local=TRUE)
 source(file = "../R/pguModel.R", local=TRUE)
+source(file = "../R/pguNormDist.R", local=TRUE)
 source(file = "../R/pguOptimizer.R", local=TRUE)
+source(file = "../R/pguMissings.R", local=TRUE)
 # source(file = "../R/pgu_exporter.R", local=TRUE)
 # source(file = "../R/pgu_hdf5.R", local=TRUE)
 # source(file = "../R/pgu_data.R", local=TRUE)
@@ -31,9 +34,18 @@ shinyServer(function(input, output, session) {
   # init reactive values
   ######################
   dataLoaded <- shiny::reactiveVal(value = FALSE)
+  modelOptimized <- shiny::reactiveVal(value = FALSE)
+  modelDefined <- shiny::reactiveVal(value = FALSE)
+  nanCleaned <- shiny::reactiveVal(value = FALSE)
+  outlierCleaned <- shiny::reactiveVal(value = FALSE)
+  ############
+  # dataFrames
+  ############
   rawData <- pgu.data$new()
   filteredData <- pgu.data$new()
   transformedData <- pgu.data$new()
+  scaledData <- pgu.data$new()
+  cleanedData <- pgu.data$new()
   
   inFile <- pgu.file$new()
   importer <- pgu.importer$new()
@@ -41,14 +53,16 @@ shinyServer(function(input, output, session) {
   plt <- pgu.plot$new()
   transformator <- pgu.transformator$new()
   model <- pgu.model$new()
+  featureModel <- pgu.normDist$new()
   optimizer <- pgu.optimizer$new()
+  missings <- pgu.missings$new()
   
   
   ###############
   # import button
   ###############
   shiny::observeEvent(input$ab.import,{
-    print(input$fi.import$datapath)
+    modelOptimized(FALSE)
     if (length(input$fi.import$datapath) > 0){
       inFile$setUploadFileName <- input$fi.import$datapath
       inFile$setFileName <- input$fi.import$name
@@ -74,6 +88,10 @@ shinyServer(function(input, output, session) {
       tryCatch({
         rawData$setRawData <- importer$import(obj = inFile)
         dataLoaded(TRUE)
+        modelOptimized(FALSE)
+        modelDefined(FALSE)
+        nanCleaned(FALSE)
+        outlierCleaned(FALSE)
       },
       error = function(e) {
         dataLoaded(FALSE)
@@ -147,6 +165,10 @@ shinyServer(function(input, output, session) {
   ###################
   shiny::observeEvent(input$ab.filterSet,{
     if(dataLoaded()){
+      modelOptimized(FALSE)
+      modelDefined(FALSE)
+      nanCleaned(FALSE)
+      outlierCleaned(FALSE)
       if (length(input$tbl.filterData_rows_all) < 1) {
         filterSet$resetRowIdx(data = rawData$rawData)
       }
@@ -191,6 +213,10 @@ shinyServer(function(input, output, session) {
   ###########################
   shiny::observeEvent(input$ab.filterInvSet,{
     if(dataLoaded()){
+      modelOptimized(FALSE)
+      modelDefined(FALSE)
+      nanCleaned(FALSE)
+      outlierCleaned(FALSE)
       if (length(input$tbl.filterData_rows_all) < 1) {
         filterSet$resetRowIdx(data = rawData$rawData)
       }
@@ -298,9 +324,43 @@ shinyServer(function(input, output, session) {
   ####################
   # model optimization
   ####################
-  shiny::observeEvent(input$ab.modelOptimization,{
+  shiny::observeEvent(input$ab.wizardOptimize,{
     if(dataLoaded()){
-      optimizer$optimize(filteredData$rawData)
+      trafoAlphabet <- c("none")
+      if(input$cb.wizardLog){
+        trafoAlphabet <- c(trafoAlphabet, "log2", "logNorm", "log10")
+      }
+      if(input$cb.wizardRoot){
+        trafoAlphabet <- c(trafoAlphabet, "squareRoot", "cubeRoot")
+      }
+      if(input$cb.wizardArcsine){
+        trafoAlphabet <- c(trafoAlphabet, "arcsine")
+      }
+      if(input$cb.wizardInverse){
+        trafoAlphabet <- c(trafoAlphabet, "inverse")
+      }
+      if(input$cb.wizardTLOP){
+        trafoAlphabet <- c(trafoAlphabet, "tukeyLOP")
+      }
+      if(input$cb.wizardBoxCox){
+        trafoAlphabet <- c(trafoAlphabet, "boxCox")
+      }
+      filteredData$setRawData <- rawData$rawData %>%
+        filterSet$filter()
+      optimizer$resetOptimizer(data =filteredData$rawData)
+      optimizer$setTrafoAlphabet <- trafoAlphabet
+      optimizer$setMirror <- input$cb.wizardMirror
+      tryCatch({
+        optimizer$optimize(filteredData$rawData)
+        modelOptimized(TRUE)
+      },
+      error = function(e) {
+        modelOptimized(FALSE)
+        shiny::showNotification(paste(e),type = "error", duration = 10)
+      }
+      )
+      print("model Optimized")
+      print(modelOptimized())
       output$tbl.optimizedTypes <- DT::renderDataTable(
         optimizer$optTypes %>%
           DT::datatable(options = list(
@@ -319,23 +379,380 @@ shinyServer(function(input, output, session) {
       )
     }
   })
-  #####################
-  # user based modeling
-  #####################
-  shiny::observeEvent(input$ab.modelApply,{
+  
+  shiny::observeEvent(input$ab.wizardReset,{
     if(dataLoaded()){
-      transformator$setTrafoType(feature = input$si.transformationFeature,
-                                 type = input$si.transformationType)
-      transformator$setMirrorLogic(feature = input$si.transformationFeature,
-                                   logic = input$cb.mirrorLogic)
-      filteredData$rawData %>%
-        transformator$estimateTrafoParameter()
-      transformedData$setRawData <- filteredData$rawData %>%
-        transformator$mutateData()
-      print(transformator)
+      trafoAlphabet <- optimizer$trafoAlphabet
+      shiny::updateCheckboxInput(session,
+                               "cb.wizardLog",
+                               value = any(grepl(pattern = "log",
+                                                 x = trafoAlphabet)))
+      shiny::updateCheckboxInput(session,
+                               "cb.wizardRoot",
+                               value = any(grepl(pattern = "Root",
+                                                 x = trafoAlphabet)))
+      shiny::updateCheckboxInput(session,
+                               "cb.wizardArcsine",
+                               value = any(grepl(pattern = "arcsine",
+                                                 x = trafoAlphabet)))
+      shiny::updateCheckboxInput(session,
+                               "cb.wizardInverse",
+                               value = any(grepl(pattern = "inverse",
+                                                 x = trafoAlphabet)))
+      shiny::updateCheckboxInput(session,
+                               "cb.wizardTLOP",
+                               value = any(grepl(pattern = "tukeyLOP",
+                                                 x = trafoAlphabet)))
+      shiny::updateCheckboxInput(session,
+                               "cb.wizardBoxCox",
+                               value = any(grepl(pattern = "boxCox",
+                                                 x = trafoAlphabet)))
+      shiny::updateCheckboxInput(session,
+                               "cb.wizardMirror",
+                               value = optimizer$mirror)
+      }
+  })
+  ######################
+  # select trafo feature
+  ######################
+  shiny::observeEvent(input$si.transformationFeature,{
+    if(dataLoaded()){
+      shiny::updateSelectInput(session, "si.transformationType", selected = transformator$trafoType(feature = input$si.transformationFeature))
+      shiny::updateCheckboxInput(session, "cb.mirrorLogic", value = transformator$mirrorLogic(feature = input$si.transformationFeature))
+
+      # log result to screen
+      output$tbl.featureModelParameter <-
+        DT::renderDataTable({
+          model$fitResultFeature(feature = input$si.transformationFeature) %>%
+            transformTibble() %>%
+            format.data.frame(scientific = TRUE, digits = 4) %>%
+            DT::datatable(options = list(
+              scrollX = TRUE,
+              scrollY = '350px',
+              paging = FALSE
+            ))
+        })
       
+      output$tbl.featureModelQuality <-
+        DT::renderDataTable({
+          model$testResultFeature(feature = input$si.transformationFeature) %>%
+            transformTibble() %>%
+            format.data.frame(scientific = TRUE, digits = 4) %>%
+            DT::datatable(options = list(
+              scrollX = TRUE,
+              scrollY = '350px',
+              paging = FALSE
+            ))
+        })
+      output$plt.featureTransformFit <-
+        renderPlot(model$plotModel(feature = input$si.transformationFeature))
     }
   })
+  
+  #####################
+  # reset trafo type
+  #####################
+  shiny::observeEvent(input$ab.trafoReset,{
+    if(dataLoaded()){
+      shiny::updateSelectInput(session, "si.transformationType", selected = transformator$trafoType(feature = input$si.transformationFeature))
+      shiny::updateCheckboxInput(session, "cb.mirrorLogic", value = transformator$mirrorLogic(feature = input$si.transformationFeature))
+    }
+  })
+  
+  ################
+  # set trafo type
+  ################
+  shiny::observeEvent(input$ab.trafoSet,{
+    if(dataLoaded()){
+      transformator$setTrafoType(feature = input$si.transformationFeature,
+        type = input$si.transformationType)
+      
+      transformator$setMirrorLogic(feature = input$si.transformationFeature,
+                                   logic = input$cb.mirrorLogic)
+      
+      filteredData$rawData %>%
+        transformator$estimateTrafoParameter()
+      
+      featureModel$resetNormDist(data = filteredData$rawData %>%
+                                   transformator$mutateData() %>%
+                                   dplyr::select(input$si.transformationFeature)
+      )
+      
+      tryCatch({
+        featureModel$fit()
+      },
+      error = function(e) {
+        #shiny::showNotification(paste(e),type = "error", duration = 10)
+        errorString <- sprintf("Error: could not optimize model parameters for  %s transformation of feature %s. Trafo type is reset to 'none'",
+                               input$si.transformationType,
+                               input$si.transformationFeature)
+        shiny::showNotification(paste(errorString),type = "error", duration = 10)
+        
+        shiny::updateSelectInput(session, "si.transformationType", selected = "none")
+        shiny::updateCheckboxInput(session, "cb.mirrorLogic", value = FALSE)
+        
+        transformator$setTrafoType(feature = input$si.transformationFeature,
+                                   type = "none")
+        transformator$setMirrorLogic(feature = input$si.transformationFeature,
+                                     logic = FALSE)
+
+        filteredData$rawData %>%
+          transformator$estimateTrafoParameter()
+        
+        featureModel$resetNormDist(data = filteredData$rawData %>%
+                                     transformator$mutateData() %>%
+                                     dplyr::select(input$si.transformationFeature)
+        )
+        featureModel$fit()
+      }
+      )
+      
+      model$setNormDist(data = featureModel, feature = input$si.transformationFeature) 
+      
+      # log result to screen
+      output$tbl.featureModelParameter <-DT::renderDataTable({
+          model$fitResultFeature(feature = input$si.transformationFeature) %>%
+            transformTibble() %>%
+            format.data.frame(scientific = TRUE, digits = 4) %>%
+            DT::datatable(options = list(
+              scrollX = TRUE,
+              scrollY = '350px',
+              paging = FALSE
+            ))
+        })
+      
+      output$tbl.featureModelQuality <- DT::renderDataTable({
+          model$testResultFeature(feature = input$si.transformationFeature) %>%
+            transformTibble() %>%
+            format.data.frame(scientific = TRUE, digits = 4) %>%
+            DT::datatable(options = list(
+              scrollX = TRUE,
+              scrollY = '350px',
+              paging = FALSE
+            ))
+        })
+      output$plt.featureTransformFit <-
+        renderPlot(model$plotModel(feature = input$si.transformationFeature))
+      
+      output$tbl.transformationParameter <- DT::renderDataTable(transformator$trafoParameter %>%
+                                                                  format.data.frame(scientific = TRUE, digits = 4),
+                                                                options = list(scrollX = TRUE, scrollY='350px', paging=FALSE))
+
+      output$tbl.modelParameter <- DT::renderDataTable(model$modelParameterData() %>%
+                                                         format.data.frame(scientific = TRUE, digits = 4),
+                                                       options = list(scrollX = TRUE,
+                                                                      scrollY = '350px',
+                                                                      paging = FALSE))
+      
+      output$tbl.modelQuality <- DT::renderDataTable(model$modelQualityData() %>%
+                                                       format.data.frame(scientific = TRUE, digits = 4),
+                                                     options = list(scrollX = TRUE,
+                                                                    scrollY = '350px',
+                                                                    paging = FALSE))
+      
+      output$tbl.testResults <- DT::renderDataTable(model$testResultData() %>%
+                                                      format.data.frame(scientific = TRUE, digits = 4),
+                                                    options = list(scrollX = TRUE,
+                                                                   scrollY = '350px',
+                                                                   paging = FALSE))
+    }
+  })
+  
+  
+  ######################
+  # apply trafo globally
+  ######################
+  shiny::observeEvent(input$ab.trafoSetGlobal,{
+    if(dataLoaded()){
+      nanCleaned(FALSE)
+      outlierCleaned(FALSE)
+      progress <- shiny::Progress$new(session, min = 1, max = length(filteredData$numericFeatureNames))
+      on.exit(progress$close())
+      for (feature in filteredData$numericFeatureNames){
+        transformator$setTrafoType(feature = feature,
+                                   type = input$si.transformationType)
+        transformator$setMirrorLogic(feature = feature,
+                                     logic = input$cb.mirrorLogic)
+      }
+      
+      # feature Based for speed
+      filteredData$rawData %>%
+        transformator$estimateTrafoParameter()
+      i = 1
+      for (feature in filteredData$numericFeatureNames){
+        progress$set(value = i)
+        i <- i+1
+        filteredData$rawData %>%
+          transformator$estimateTrafoParameter()
+        featureModel$resetNormDist(data = filteredData$rawData %>%
+                                     transformator$mutateData() %>%
+                                     dplyr::select(feature))
+        tryCatch({
+          featureModel$fit()
+        },
+        error = function(e) {
+          #shiny::showNotification(paste(e),type = "error", duration = 10)
+          errorString <- sprintf("Error: could not optimize model parameters for  %s transformation of feature %s. Trafo type is reset to 'none'",
+                                 input$si.transformationType,
+                                 feature)
+          shiny::showNotification(paste(errorString),type = "error", duration = 1)
+          
+          # shiny::updateSelectInput(session, "si.transformationType", selected = "none")
+          # shiny::updateCheckboxInput(session, "cb.mirrorLogic", value = FALSE)
+          
+          transformator$setTrafoType(feature = feature,
+                                     type = "none")
+          transformator$setMirrorLogic(feature = feature,
+                                       logic = FALSE)
+          
+          filteredData$rawData %>%
+            transformator$estimateTrafoParameter()
+          
+          featureModel$resetNormDist(data = filteredData$rawData %>%
+                                       transformator$mutateData() %>%
+                                       dplyr::select(input$si.transformationFeature)
+          )
+          featureModel$fit()
+        }
+        )
+        
+        model$setNormDist(data = featureModel, feature = input$si.transformationFeature) 
+      }
+      modelDefined(TRUE)
+      
+      # log result to screen
+      shiny::updateSelectInput(session, "si.transformationType", selected = transformator$trafoType(feature = input$si.transformationFeature))
+      shiny::updateCheckboxInput(session, "cb.mirrorLogic", value = transformator$mirrorLogic(feature = input$si.transformationFeature))
+      
+      output$tbl.featureModelParameter <-DT::renderDataTable({
+        model$fitResultFeature(feature = input$si.transformationFeature) %>%
+          transformTibble() %>%
+          format.data.frame(scientific = TRUE, digits = 4) %>%
+          DT::datatable(options = list(
+            scrollX = TRUE,
+            scrollY = '350px',
+            paging = FALSE
+          ))
+      })
+      
+      output$tbl.featureModelQuality <- DT::renderDataTable({
+        model$testResultFeature(feature = input$si.transformationFeature) %>%
+          transformTibble() %>%
+          format.data.frame(scientific = TRUE, digits = 4) %>%
+          DT::datatable(options = list(
+            scrollX = TRUE,
+            scrollY = '350px',
+            paging = FALSE
+          ))
+      })
+      output$plt.featureTransformFit <-
+        renderPlot(model$plotModel(feature = input$si.transformationFeature))
+      
+      output$tbl.transformationParameter <- DT::renderDataTable(transformator$trafoParameter %>%
+                                                                  format.data.frame(scientific = TRUE, digits = 4),
+                                                                options = list(scrollX = TRUE, scrollY='350px', paging=FALSE))
+      
+      output$tbl.modelParameter <- DT::renderDataTable(model$modelParameterData() %>%
+                                                         format.data.frame(scientific = TRUE, digits = 4),
+                                                       options = list(scrollX = TRUE,
+                                                                      scrollY = '350px',
+                                                                      paging = FALSE))
+      
+      output$tbl.modelQuality <- DT::renderDataTable(model$modelQualityData() %>%
+                                                       format.data.frame(scientific = TRUE, digits = 4),
+                                                     options = list(scrollX = TRUE,
+                                                                    scrollY = '350px',
+                                                                    paging = FALSE))
+      
+      output$tbl.testResults <- DT::renderDataTable(model$testResultData() %>%
+                                                      format.data.frame(scientific = TRUE, digits = 4),
+                                                    options = list(scrollX = TRUE,
+                                                                   scrollY = '350px',
+                                                                   paging = FALSE))
+    }
+  })
+
+  #######################
+  # reset missing choices
+  #######################
+  shiny::observeEvent(input$ab.missingsReset,{
+    shiny::updateSelectInput(session,
+                             "si.nanHandleMethod",
+                             selected = missings$cleaningAgent)
+    
+    shiny::updateNumericInput(session,
+                              "ni.nanSeed",
+                              value = missings$seed)
+  })
+  
+  ####################
+  # missing statistics
+  ####################
+  shiny::observeEvent(input$si.nanSummary,{
+    if(modelDefined()){
+      switch (input$si.nanSummary,
+              "Statistics" = output$tbl.nanSummary <- DT::renderDataTable(missings$nanDistribution(data = scaledData$rawData)%>%
+                                                                            DT::datatable(options = list(
+                                                                              scrollX = TRUE,
+                                                                              scrollY = '350px',
+                                                                              paging = FALSE
+                                                                            ))),
+              "Details" = output$tbl.nanSummary <- DT::renderDataTable(missings$nanPositives(data = scaledData$rawData)%>%
+                                                                         format.data.frame(scientific = TRUE, digits = 4) %>%
+                                                                         DT::datatable(options = list(
+                                                                           scrollX = TRUE,
+                                                                           scrollY = '350px',
+                                                                           paging = FALSE
+                                                                         )))
+      )
+    }
+  })
+  
+  #############################
+  # update nan cleaning results
+  #############################
+  shiny::observeEvent(input$si.nanHandleFeature,{
+    if(nanCleaned()){
+      output$tbl.nanCleaningSummary <- DT::renderDataTable(cleanedData$rawData %>%
+                                                             dplyr::select(input$si.nanHandleFeature) %>%
+                                                             dplyr::slice(missings$missingsIdxByFeature(feature = input$si.nanHandleFeature)) %>%
+                                                             format.data.frame(scientific = TRUE, digits = 4) %>%
+                                                             DT::datatable(options = list(
+                                                               scrollX = TRUE,
+                                                               scrollY = '350px',
+                                                               paging = FALSE)))
+      
+      output$plt.nanCleaningSummary <- shiny::renderPlot(missings$featurePlot(data = cleanedData$rawData, feature = input$si.nanHandleFeature))
+    }
+  })
+  
+  ###############
+  # fill missings
+  ###############
+  shiny::observeEvent(input$ab.fillMissings,{
+    if(modelDefined()){
+      missings$setCleaningAgent <- input$si.nanHandleMethod
+      missings$setSeed <- input$ni.nanSeed
+      
+      cleanedData$setRawData <- scaledData$rawData %>%
+        missings$handleMissings() %>%
+        model$rescaleData() %>%
+        transformator$reverseMutateData()
+      
+      output$tbl.nanCleaningSummary <- DT::renderDataTable(cleanedData$rawData %>%
+                                                             dplyr::select(input$si.nanHandleFeature) %>%
+                                                             dplyr::slice(missings$missingsIdxByFeature(feature = input$si.nanHandleFeature)) %>%
+                                                            format.data.frame(scientific = TRUE, digits = 4) %>%
+                                                            DT::datatable(options = list(
+                                                              scrollX = TRUE,
+                                                              scrollY = '350px',
+                                                              paging = FALSE)))
+      
+      output$plt.nanCleaningSummary <- shiny::renderPlot(missings$featurePlot(data = cleanedData$rawData, feature = input$si.nanHandleFeature))
+      nanCleaned(TRUE)
+    }
+  })
+  
   ##############
   # observe Tabs
   ##############
@@ -375,13 +792,53 @@ shinyServer(function(input, output, session) {
         shiny::showNotification(paste(errorMessage),type = "error", duration = 10)
       }
     }
-    if (input$menue == "tab_model"){
-      if(dataLoaded()){
+    if (input$menue == "tab_wizard"){
+      if (!dataLoaded()){
+        errorMessage <- sprintf("No data loaded.", inFile$suffix)
+        shiny::showNotification(paste(errorMessage),type = "error", duration = 10)
+      }
+      if(modelOptimized()){
+        output$tbl.optimizedTypes <- DT::renderDataTable(
+          optimizer$optTypes %>%
+            DT::datatable(options = list(
+              scrollX = TRUE,
+              scrollY = '350px',
+              paging = FALSE
+            ))
+        )
+        output$tbl.optimizedValues <- DT::renderDataTable(
+          optimizer$optParameter %>%
+            DT::datatable(options = list(
+              scrollX = TRUE,
+              scrollY = '350px',
+              paging = FALSE
+            ))
+        )
+      }
+      else{
+        output$tbl.optimizedTypes <- DT::renderDataTable(NULL)
+        output$tbl.optimizedValues <- DT::renderDataTable(NULL)
+      }
+    }
+    if (input$menue == "tab_trafo"){
+      if(!dataLoaded()){
+        output$plt.featureTransformFit <- shiny::renderPlot(NULL)
+        output$tbl.featureModelParameter <- DT::renderDataTable(NULL)
+        output$tbl.featureModelQuality <- DT::renderDataTable(NULL)
+        output$tbl.transformationParameter <- DT::renderDataTable(NULL)
+        output$tbl.modelParameter <- DT::renderDataTable(NULL)
+        output$tbl.modelQuality <- DT::renderDataTable(NULL)
+        output$tbl.modelTestResults <- DT::renderDataTable(NULL)
+        
+        errorMessage <- sprintf("No data loaded.", inFile$suffix)
+        shiny::showNotification(paste(errorMessage),type = "error", duration = 10)
+      }
+      else if (!modelDefined()){
         filteredData$setRawData <- rawData$rawData %>%
           filterSet$filter()
         transformator$resetTrafoParameter(data = filteredData$rawData)
+        transformator$estimateTrafoParameter(data = filteredData$rawData)
         model$resetModel(data = filteredData$rawData)
-        optimizer$resetOptimizer(data =filteredData$rawData)
         
         shiny::updateSelectInput(session, "si.transformationFeature",
                                  choices = filteredData$numericFeatureNames,
@@ -391,20 +848,211 @@ shinyServer(function(input, output, session) {
                                  selected = transformator$trafoType(feature = filteredData$numericFeatureNames[1]))
         shiny::updateCheckboxInput(session, "cd.mirrorLogic",
                                    value = transformator$mirrorLogic(feature = filteredData$numericFeatureNames[1]))
+        
+        progress <-
+          shiny::Progress$new(session,
+                              min = 1,
+                              max = length(filteredData$numericFeatureNames))
+        on.exit(progress$close())
+        for (feature in filteredData$numericFeatureNames) {
+          transformator$setTrafoType(feature = feature,
+                                     type = input$si.transformationType)
+          transformator$setMirrorLogic(feature = feature,
+                                       logic = input$cb.mirrorLogic)
+        }
+        
+        # feature Based for speed
+        filteredData$rawData %>%
+          transformator$estimateTrafoParameter()
+        i = 1
+        for (feature in filteredData$numericFeatureNames) {
+          progress$set(value = i)
+          i <- i + 1
+          filteredData$rawData %>%
+            transformator$estimateTrafoParameter()
+          featureModel$resetNormDist(data = filteredData$rawData %>%
+                                       transformator$mutateData() %>%
+                                       dplyr::select(feature))
+          tryCatch({
+            featureModel$fit()
+          },
+          error = function(e) {
+            #shiny::showNotification(paste(e),type = "error", duration = 10)
+            errorString <-
+              sprintf(
+                "Error: could not optimize model parameters for  %s transformation of feature %s. Trafo type is reset to 'none'",
+                input$si.transformationType,
+                feature
+              )
+            shiny::showNotification(paste(errorString), type = "error", duration = 1)
+            
+            
+            transformator$setTrafoType(feature = feature,
+                                       type = "none")
+            transformator$setMirrorLogic(feature = feature,
+                                         logic = FALSE)
+            
+            filteredData$rawData %>%
+              transformator$estimateTrafoParameter()
+            
+            featureModel$resetNormDist(
+              data = filteredData$rawData %>%
+                transformator$mutateData() %>%
+                dplyr::select(input$si.transformationFeature)
+            )
+            featureModel$fit()
+          })
+          
+          model$setNormDist(data = featureModel,
+                            feature = input$si.transformationFeature)
+        }
+        modelDefined(TRUE)
+        
+        # log result to screen
+        shiny::updateSelectInput(
+          session,
+          "si.transformationType",
+          selected = transformator$trafoType(feature = input$si.transformationFeature)
+        )
+        shiny::updateCheckboxInput(
+          session,
+          "cb.mirrorLogic",
+          value = transformator$mirrorLogic(feature = input$si.transformationFeature)
+        )
+        
+        output$tbl.featureModelParameter <- DT::renderDataTable({
+          model$fitResultFeature(feature = input$si.transformationFeature) %>%
+            transformTibble() %>%
+            format.data.frame(scientific = TRUE, digits = 4) %>%
+            DT::datatable(options = list(
+              scrollX = TRUE,
+              scrollY = '350px',
+              paging = FALSE
+            ))
+        })
+        
+        output$tbl.featureModelQuality <- DT::renderDataTable({
+          model$testResultFeature(feature = input$si.transformationFeature) %>%
+            transformTibble() %>%
+            format.data.frame(scientific = TRUE, digits = 4) %>%
+            DT::datatable(options = list(
+              scrollX = TRUE,
+              scrollY = '350px',
+              paging = FALSE
+            ))
+        })
+        output$plt.featureTransformFit <- shiny::renderPlot(
+          model$plotModel(feature = input$si.transformationFeature))
+        
+        output$tbl.transformationParameter <-
+          DT::renderDataTable(
+            transformator$trafoParameter %>%
+              format.data.frame(scientific = TRUE, digits = 4),
+            options = list(
+              scrollX = TRUE,
+              scrollY = '350px',
+              paging = FALSE
+            )
+          )
+        
+        output$tbl.modelParameter <-
+          DT::renderDataTable(
+            model$modelParameterData() %>%
+              format.data.frame(scientific = TRUE, digits = 4),
+            options = list(
+              scrollX = TRUE,
+              scrollY = '350px',
+              paging = FALSE
+            )
+          )
+        
+        output$tbl.modelQuality <-
+          DT::renderDataTable(
+            model$modelQualityData() %>%
+              format.data.frame(scientific = TRUE, digits = 4),
+            options = list(
+              scrollX = TRUE,
+              scrollY = '350px',
+              paging = FALSE
+            )
+          )
+        
+        output$tbl.testResults <-
+          DT::renderDataTable(
+            model$testResultData() %>%
+              format.data.frame(scientific = TRUE, digits = 4),
+            options = list(
+              scrollX = TRUE,
+              scrollY = '350px',
+              paging = FALSE
+            )
+          )
       }
-      else{
-        output$tbl.modelOptimized <- DT::renderDataTable(NULL)
-        output$tbl.featureTransformFit <- DT::renderDataTable(NULL)
-        output$tbl.featureTransformTest <- DT::renderDataTable(NULL)
-        output$tbl.transformationParameter <- DT::renderDataTable(NULL)
-        output$tbl.modelParameter <- DT::renderDataTable(NULL)
-        output$tbl.modelQuality <- DT::renderDataTable(NULL)
-        output$tbl.testResults <- DT::renderDataTable(NULL)
-        output$plt.featureTransformFit <- shiny::renderPlot(NULL)
-        errorMessage <- sprintf("No data loaded.", inFile$suffix)
+      
+     
+      
+    }
+    if (input$menue == "tab_tidy"){
+      shiny::updateSelectInput(session,
+                               "si.nanHandleMethod",
+                               choices = missings$cleaningAgentAlphabet,
+                               selected = missings$cleaningAgent)
+      
+      if(!dataLoaded()){
+        output$plt.nanSummarx <- shiny::renderPlot(NULL)
+        output$tbl.nanSummary <- DT::renderDataTable(NULL)
+        output$plt.nanCleaningSummary <- shiny::renderPlot(NULL)
+        output$tbl.nanCleaningSummary <- DT::renderDataTable(NULL)
+        errorMessage <- sprintf("No data loaded.")
         shiny::showNotification(paste(errorMessage),type = "error", duration = 10)
       }
-    }
+      else if(!modelDefined()){
+        shiny::updateSelectInput(session, "si.nanHandleFeature",
+                                 choices = filteredData$numericFeatureNames,
+                                 selected = filteredData$numericFeatureNames[1])
+        
+        output$plt.nanSummary <- shiny::renderPlot(NULL)
+        output$tbl.nanSummary <- DT::renderDataTable(NULL)
+        output$plt.nanCleaningSummary <- shiny::renderPlot(NULL)
+        output$tbl.nanCleaningSummary <- DT::renderDataTable(NULL)
+        errorMessage <- sprintf("No transformed dataset available.")
+        shiny::showNotification(paste(errorMessage),type = "error", duration = 10)
+      }
+      else if (!nanCleaned()){
+        output$plt.nanCleaningSummary <- shiny::renderPlot(NULL)
+        output$tbl.nanCleaningSummary <- DT::renderDataTable(NULL)
+        
+        
+        transformedData$setRawData  <- filteredData$rawData %>%
+          transformator$mutateData()
+        scaledData$setRawData <- transformedData$rawData %>%
+          model$scaleData()
+
+        missings$resetMissingsParameter(data = scaledData$rawData)
+        
+        shiny::updateSelectInput(session, "si.nanHandleFeature",
+                                 choices = filteredData$numericFeatureNames,
+                                 selected = filteredData$numericFeatureNames[1])
+        
+        output$plt.nanSummary <- shiny::renderPlot(missings$nanHeatMap())
+        switch (input$si.nanSummary,
+                "Statistics" = output$tbl.nanSummary <- DT::renderDataTable(missings$nanDistribution(data = scaledData$rawData)%>%
+                                                                              DT::datatable(options = list(
+                                                                                scrollX = TRUE,
+                                                                                scrollY = '350px',
+                                                                                paging = FALSE
+                                                                              ))),
+                "Details" = output$tbl.nanSummary <- DT::renderDataTable(missings$nanPositives(data = scaledData$rawData)%>%
+                                                                           format.data.frame(scientific = TRUE, digits = 4) %>%
+                                                                           DT::datatable(options = list(
+                                                                             scrollX = TRUE,
+                                                                             scrollY = '350px',
+                                                                             paging = FALSE
+                                                                           )))
+        )
+        
+      }
+      }
   })
 })
 

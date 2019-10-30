@@ -201,17 +201,119 @@ body <- shinydashboard::dashboardBody(shinydashboard::tabItems(
     )),
   
   shinydashboard::tabItem(
-    tabName = "tab_model",
-    fluidPage(
+    tabName = "tab_wizard",
+    shiny::fluidPage(
       width = 12,
-      height = 500,
+      height = "575px",
       title = "Model",
       shiny::fluidRow(
         shiny::column(
           width = 2,
           shinydashboard::box(
             width = 12,
-            height = "100%",
+            height = "575px",
+            title = "Menue",
+            status = "primary",
+            solidHeader = TRUE,
+            shiny::checkboxInput(
+              "cb.wizardLog",
+              width = "100%",
+              label = h5("Log"),
+              value = TRUE
+            ),
+            shiny::checkboxInput(
+              "cb.wizardRoot",
+              width = "100%",
+              label = h5("Root"),
+              value = TRUE
+            ),
+            shiny::checkboxInput(
+              "cb.wizardArcsine",
+              width = "100%",
+              label = h5("arcsine"),
+              value = TRUE
+            ),
+            shiny::checkboxInput(
+              "cb.wizardInverse",
+              width = "100%",
+              label = h5("inverse"),
+              value = TRUE
+            ),
+            shiny::checkboxInput(
+              "cb.wizardTLOP",
+              width = "100%",
+              label = h5("tuckeyLOP"),
+              value = FALSE
+            ),
+            shiny::checkboxInput(
+              "cb.wizardBoxCox",
+              width = "100%",
+              label = h5("boxCox"),
+              value = FALSE
+            ),
+            shiny::checkboxInput(
+              "cb.wizardMirror",
+              width = "100%",
+              label = h5("mirror"),
+              value = FALSE
+            ),
+            shiny::hr(),
+            shiny::actionButton(
+              inputId = "ab.wizardOptimize",
+              label = "optimize",
+              width = "100%"
+            ),
+            shiny::actionButton(
+              inputId = "ab.wizardReset",
+              label = "reset",
+              width = "100%"
+            )
+          )
+        ),
+        shiny::column(
+          width = 10,
+          shinydashboard::box(
+            width = 12,
+            height = "575px",
+            title = "Optimized Models",
+            status = "primary",
+            solidHeader = TRUE,
+            shinydashboard::tabBox(
+              width = 12,
+              # The id lets us use input$tabset1 on the server to find the current tab
+              id = "tabsetModel",
+              height = "100%",
+              tabPanel(
+                title = "Optimal Transformations",
+                shiny::fluidPage(
+                  DT::dataTableOutput("tbl.optimizedTypes")
+                )
+              ),
+              tabPanel(
+                title = "Optimized Transformation Parameters",
+                shiny::fluidPage(
+                  DT::dataTableOutput("tbl.optimizedValues")
+                )
+              )
+      )
+    )
+  )
+  )
+  )
+  ),
+
+  shinydashboard::tabItem(
+    tabName = "tab_trafo",
+    fluidPage(
+      width = 12,
+      height = "575px",
+      title = "Transformation",
+      shiny::fluidRow(
+        shiny::column(
+          width = 3,
+          shinydashboard::box(
+            width = 12,
+            height = "575px",
             title = "Menue",
             status = "primary",
             solidHeader = TRUE,
@@ -236,91 +338,141 @@ body <- shinydashboard::dashboardBody(shinydashboard::tabItems(
             ),
             shiny::hr(),
             shiny::actionButton(
-              inputId = "ab.modelApply",
-              label = "apply",
+              inputId = "ab.trafoSet",
+              label = "set",
               width = "100%"
             ),
             shiny::actionButton(
-              inputId = "ab.modelApplyAll",
-              label = "apply to all",
+              inputId = "ab.trafoSetGlobal",
+              label = "set globally",
               width = "100%"
             ),
             shiny::hr(),
             shiny::actionButton(
-              inputId = "ab.modelReset",
+              inputId = "ab.trafoReset",
               label = "reset",
-              width = "100%"
-            ),
-            shiny::hr(),
-            shiny::actionButton(
-              inputId = "ab.modelOptimization",
-              label = "optimize",
               width = "100%"
             )
           )
         ),
         shiny::column(
-          width = 10,
+          width = 9,
           shinydashboard::box(
             width = 12,
             height = "100%",
-            title = "Optimized Models",
+            title = "Model Results",
             status = "primary",
             solidHeader = TRUE,
-            collapsible = TRUE,
-            shinydashboard::tabBox(
-                width = 12,
-                title = "Model",
-                # The id lets us use input$tabset1 on the server to find the current tab
-                id = "tabsetModel",
-                height = 500,
-                tabPanel(
-                  title = "Optimal Transformations",
-                  shiny::fluidPage(
-                    DT::dataTableOutput("tbl.optimizedTypes")
-                  )
-                ),
-                tabPanel(
-                  title = "Optimized Transformation Parameters",
-                  shiny::fluidPage(
-                    DT::dataTableOutput("tbl.optimizedValues")
-                  )
-                )
-            )),
-          shiny::hr(),
-          tabBox(
-            width = 12,
-            title = "Model",
-            # The id lets us use input$tabset1 on the server to find the current tab
-            id = "tabsetModel",
-            height = 500,
-            tabPanel(
-              "Transformation",
-              fluidPage(plotOutput("plt.featureTransformFit")),
-              hr(),
-              fluidPage(fluidRow(
-                column(6,
-                       DT::dataTableOutput("tbl.featureTransformFit")),
-                column(6,
-                       DT::dataTableOutput("tbl.featureTransformTest"))
-              ))
-            ),
-            tabPanel(
-              "Transformation Parameter",
-              DT::dataTableOutput("tbl.transformationParameter")
-            ),
-            tabPanel("Model Parameter",
-                     DT::dataTableOutput("tbl.modelParameter")),
-            tabPanel("Model Quality",
-                     DT::dataTableOutput("tbl.modelQuality")),
-            tabPanel("Test Results",
-                     DT::dataTableOutput("tbl.testResults"))
-          )
-        )
-      )
-    ))
-   
+            tabBox(
+              width = 12,
+              # The id lets us use input$tabset1 on the server to find the current tab
+              id = "tabsetTransformation",
+              height = "250px",
+              tabPanel(
+                "Feature",
+                shiny::fluidPage(shiny::plotOutput("plt.featureTransformFit")),
+                hr(),
+                fluidPage(fluidRow(
+                  column(6,
+                         DT::dataTableOutput("tbl.featureModelParameter")),
+                  column(6,
+                         DT::dataTableOutput("tbl.featureModelQuality"))
+                ))
+              ),
+              tabPanel(
+                "Transformation Parameter",
+                DT::dataTableOutput("tbl.transformationParameter")
+              ),
+              tabPanel("Model Parameter",
+                       DT::dataTableOutput("tbl.modelParameter")),
+              tabPanel("Model Quality",
+                       DT::dataTableOutput("tbl.modelQuality")),
+              tabPanel("Test Results",
+                       DT::dataTableOutput("tbl.testResults"))
+            )
+        
+  ))))),
+  shinydashboard::tabItem(tabName = "tab_tidy",
+                          fluidPage(
+                            width = 12,
+                            height = "575px",
+                            shiny::fluidRow(
+                              shiny::column(
+                                width = 3,
+                                shinydashboard::box(
+                                  width = 12,
+                                  height = "575px",
+                                  title = "Menue",
+                                  status = "primary",
+                                  solidHeader = TRUE,
+                                  shiny::selectInput(
+                                    "si.nanHandleMethod",
+                                    label = h5("Cleaning Method"),
+                                    choices = list(),
+                                    selected = 1
+                                  ),
+                                  shiny::numericInput("ni.nanSeed", label = h5("Seed"),
+                                                      value = 42),
+                                  shiny::hr(),
+                                  shiny::selectInput(
+                                    "si.nanHandleFeature",
+                                    label = h5("Feature"),
+                                    choices = list(),
+                                    selected = 1
+                                  ),
+                                  selectInput(
+                                    "si.nanSummary",
+                                    label = h5("Information Detail"),
+                                    choices = list("Statistics", "Details"),
+                                    selected = 1
+                                  ),
+                                  shiny::hr(),
+                                  shiny::actionButton(
+                                    inputId = "ab.fillMissings",
+                                    label = "fill missings",
+                                    width = "100%"
+                                  ),
+                                  shiny::actionButton(
+                                    inputId = "ab.missingsReset",
+                                    label = "reset",
+                                    width = "100%"
+                                  )
+                                  )),
+                              shiny::column(
+                                width = 9,
+                                shinydashboard::box(
+                                  width = 12,
+                                  height = "1050px",
+                                  title = "Handle NANs",
+                                  status = "primary",
+                                  solidHeader = TRUE,
+                            shinydashboard::tabBox(
+                              width = 12,
+                              # The id lets us use input$tabset1 on the server to find the current tab
+                              id = "tabsetTidy",
+                              height = "1000px",
+                              shiny::tabPanel(
+                                "NAN Summary",
+                                shiny::fluidPage(
+                                  shiny::plotOutput("plt.nanSummary"),
+                                  shiny::hr(),
+                                  DT::dataTableOutput("tbl.nanSummary")
+                              )
+                              ),
+                              shiny::tabPanel(
+                                "Results",
+                                shiny::fluidPage(
+                                  plotOutput("plt.nanCleaningSummary"),
+                                  shiny::hr(),
+                                  DT::dataTableOutput("tbl.nanCleaningSummary")
+                                )
+                              )
+                            )))
+                          )))
+  
+  
 ))
+    
 
     # shinydashboard::tabItem(tabName = "tab_model",
     #                         fluidPage(

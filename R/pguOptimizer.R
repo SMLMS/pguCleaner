@@ -9,9 +9,10 @@ pgu.optimizer <- R6::R6Class("pgu.optimizer",
                               ####################
                               private = list(
                                 .features = "character",
+                                .trafoAlphabet = "character",
+                                .mirror = "logical",
                                 .optParameter = "tbl_df",
                                 .optTypes = "tbl_df"
-                                
                               ),
                               ##################
                               # accessor methods
@@ -19,6 +20,18 @@ pgu.optimizer <- R6::R6Class("pgu.optimizer",
                               active = list(
                                 features = function(){
                                   return(private$.features)
+                                },
+                                trafoAlphabet = function(){
+                                  return(private$.trafoAlphabet)
+                                },
+                                setTrafoAlphabet = function(data = "character"){
+                                  private$.trafoAlphabet <- data
+                                },
+                                mirror = function(){
+                                  return(private$.mirror)
+                                },
+                                setMirror = function(data = "logical"){
+                                  private$.mirror <- data
                                 },
                                 optParameter = function(){
                                   return(private$.optParameter)
@@ -47,6 +60,10 @@ pgu.optimizer <- R6::R6Class("pgu.optimizer",
                                 print = function(){
                                   rString <- sprintf("\npgu.optimizer\n")
                                   cat(rString)
+                                  cat("\ntransformatins\n")
+                                  print(private$.trafoAlphabet)
+                                  cat("\nmirror\n")
+                                  print(private$.mirror)
                                   cat("\noptParameter\n")
                                   print(private$.optParameter)
                                   cat("\noptTypes\n")
@@ -103,6 +120,8 @@ pgu.optimizer$set("public", "resetOptTypes", function(data = "tbl_df"){
 
 pgu.optimizer$set("public", "resetOptimizer", function(data = "tbl_df"){
   self$resetFeatures(data)
+  self$setTrafoAlphabet <- c("none", "log2", "logNorm", "log10", "squareRoot", "cubeRoot", "arcsine", "inverse")
+  self$setMirror <- FALSE
   self$resetOptParameter(data)
   self$resetOptTypes(data)
 })
@@ -196,23 +215,28 @@ pgu.optimizer$set("public", "updateOptParameter", function(model = "pgu.model", 
 # optimization functions
 ########################
 pgu.optimizer$set("public", "optimize", function(data  = "tbl_df"){
+  print(head(data))
   transformator <- pgu.transformator$new(data)
-  for (logic in c(TRUE, FALSE)){
+  mirrorLogic <- c(FALSE)
+  if (self$mirror){
+    mirrorLogic <- c(mirrorLogic, TRUE)
+  }
+  for (logic in mirrorLogic){
     transformator <- self$updateMirrorLogic(transformator, logic)
-    for (type  in transformator$trafoAlphabet){
-    #for (type in c("none", "log2", "squareRoot")){
+    for (type  in self$trafoAlphabet){
       transformator <- self$updateTrafoType(transformator, type)
       transformator$estimateTrafoParameter(data)
       model <- pgu.model$new(data %>%
                                transformator$mutateData())
       tryCatch({
-        model$fit()
+        model$fitData()
+        self$updateOptParameter(model, type, logic)
       },
       error = function(e){
         print(e)
-        warning("ops")
+        warning("oops")
       })
-      self$updateOptParameter(model, type, logic)
+  #     self$updateOptParameter(model, type, logic)
     }
   }
 })

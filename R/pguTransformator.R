@@ -116,7 +116,7 @@ pgu.transformator$set("public", "mirrorLogic", function(feature = "character"){
   l <- FALSE
   idx <- self$featureIdx(feature)
   if(!is.na(idx)){
-    l <- self$trafoParameter[idx, "mirrorLogic"]
+    l <- self$trafoParameter[[idx, "mirrorLogic"]]
   }
   return(l)
 })

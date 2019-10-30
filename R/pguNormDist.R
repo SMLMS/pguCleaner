@@ -116,6 +116,10 @@ pgu.normDist <- R6::R6Class("pgu.normDist",
                               ###################
                                public = list(
                                  initialize = function(data = "tbl_df"){
+                                   if(class(data)[1] != "tbl_df"){
+                                     data <- tibble::tibble(names <- "none",
+                                                            values <- c(NA))
+                                   }
                                    self$resetNormDist(data)
                                  },
                                  finalize = function(){
@@ -198,7 +202,7 @@ pgu.normDist$set("public", "optimize", function(){
   },
   error = function(cond) {
     self$resetFail()
-    warning("Warning in pgu.normDist during maximum likelihood optimization: %s.", cond)
+    stop("Warning in pgu.normDist during maximum likelihood optimization: %s.", cond)
     return(NA)
   })
   if(isS4(fit)){
@@ -332,7 +336,7 @@ pgu.normDist$set("public", "plotRawDataDist", function(){
   return(p)
 })
 
-pgu.normDist$set("public", "plotNnormalQQ", function(){
+pgu.normDist$set("public", "normalQQPlot", function(){
   p <- ggplot2::ggplot(data=self$rawData, mapping=ggplot2::aes_string(sample="x"))+
     ggplot2::stat_qq()+
     ggplot2::stat_qq_line(color="blue")
