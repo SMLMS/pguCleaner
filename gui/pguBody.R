@@ -429,7 +429,7 @@ body <- shinydashboard::dashboardBody(shinydashboard::tabItems(
                                   shiny::hr(),
                                   shiny::actionButton(
                                     inputId = "ab.fillMissings",
-                                    label = "fill missings",
+                                    label = "Handle NANs",
                                     width = "100%"
                                   ),
                                   shiny::actionButton(
@@ -468,142 +468,178 @@ body <- shinydashboard::dashboardBody(shinydashboard::tabItems(
                                 )
                               )
                             )))
-                          )))
+                          ))),
   
-  
+  shinydashboard::tabItem(tabName = "tab_revise",
+                          fluidPage(
+                            width = 12,
+                            height = "575px",
+                            shiny::fluidRow(
+                              shiny::column(
+                                width = 3,
+                                shinydashboard::box(
+                                  width = 12,
+                                  height = "575px",
+                                  title = "Menue",
+                                  status = "primary",
+                                  solidHeader = TRUE,
+                                  shiny::selectInput(
+                                    "si.outHandleMethod",
+                                    label = h5("Cleaning Method"),
+                                    choices = list(),
+                                    selected = 1
+                                  ),
+                                  shiny::numericInput("ni.outSeed", label = h5("Seed"),
+                                                      value = 42),
+                                  shiny::hr(),
+                                  shiny::selectInput(
+                                    "si.outHandleFeature",
+                                    label = h5("Feature"),
+                                    choices = list(),
+                                    selected = 1
+                                  ),
+                                  selectInput(
+                                    "si.outSummary",
+                                    label = h5("Information Detail"),
+                                    choices = list("Statistics", "Outliers", "Data"),
+                                    selected = 1
+                                  ),
+                                  shiny::hr(),
+                                  shiny::actionButton(
+                                    inputId = "ab.detectOutliers",
+                                    label = "detect outliers",
+                                    width = "100%"
+                                  ),
+                                  shiny::actionButton(
+                                    inputId = "ab.reviseOutliers",
+                                    label = "revise outliers",
+                                    width = "100%"
+                                  ),
+                                  shiny::actionButton(
+                                    inputId = "ab.outliersReset",
+                                    label = "reset",
+                                    width = "100%"
+                                  )
+                                )),
+                              shiny::column(
+                                width = 9,
+                                shinydashboard::box(
+                                  width = 12,
+                                  height = "1050px",
+                                  title = "Revise Outliers",
+                                  status = "primary",
+                                  solidHeader = TRUE,
+                                  shinydashboard::tabBox(
+                                    width = 12,
+                                    # The id lets us use input$tabset1 on the server to find the current tab
+                                    id = "tabsetTidy",
+                                    height = "1000px",
+                                    shiny::tabPanel(
+                                      "Outlier Summary",
+                                      shiny::fluidPage(
+                                        shiny::plotOutput("plt.outSummary"),
+                                        shiny::hr(),
+                                        DT::dataTableOutput("tbl.outSummary")
+                                      )
+                                    ),
+                                    shiny::tabPanel(
+                                      "Results",
+                                      shiny::fluidPage(
+                                        plotOutput("plt.outCleaningSummary"),
+                                        shiny::hr(),
+                                        DT::dataTableOutput("tbl.outCleaningSummary")
+                                      )
+                                    )
+                                  )))
+                            ))),
+  shinydashboard::tabItem(tabName = "tab_correlate",
+                          shiny::fluidPage(
+                            width = 12,
+                            title = "Correlation and Regression",
+                            id = "tabsetCorrelation",
+                            shiny::fluidRow(
+                              shiny::column(
+                                width = 3,
+                                shinydashboard::box(
+                                  width = 12,
+                                  height = "575px",
+                                  title = "Menue",
+                                  status = "primary",
+                                  solidHeader = TRUE,
+                                  shiny::selectInput(
+                                    "si.regressionAbs",
+                                    width = "100%",
+                                    label = h5("Abscissae"),
+                                    choices = list(),
+                                    selected = 1
+                                  ),
+                                  shiny::selectInput(
+                                    "si.regressionOrd",
+                                    width = "100%",
+                                    label = h5("Ordinate"),
+                                    choices = list(),
+                                    selected = 1
+                                  ),
+                                  shiny::selectInput(
+                                    "si.correlationStat",
+                                    width = "100%",
+                                    label = h5("Statistics"),
+                                    choices = list("Intercept", "Slope", "p.regression", "Rho", "p.correlation"),
+                                    selected = 1
+                                  ),
+                                  shiny::hr(),
+                                  shiny::actionButton(
+                                    inputId = "ab.correlate",
+                                    label = "update",
+                                    width = "100%"
+                                  ),
+                                  shiny::actionButton(
+                                    inputId = "ab.resetRegression",
+                                    label = "reset",
+                                    width = "100%"
+                                  )
+                                )
+                              ),
+                              shiny::column(
+                                width = 9,
+                            shinydashboard::box(
+                              width = 12,
+                              title = "Linear Regression",
+                              status = "primary",
+                              solidHeader = TRUE,
+                              collapsible = TRUE,
+                              plotOutput("plt.regressionFeature"),
+                              shiny::hr(),
+                              shiny::fluidRow(
+                                shiny::column(
+                                  width = 6,
+                                  shiny::fluidPage(
+                                    DT::dataTableOutput("tbl.regressionFeature")
+                                  )
+                                ),
+                                shiny::column(
+                                  width = 6,
+                                  shiny::fluidPage(
+                                    DT::dataTableOutput("tbl.correlationFeature")
+                                  )
+                                )
+                              )
+                            ),
+                            shinydashboard::box(
+                              width = 12,
+                              title = "Statistics",
+                              status = "primary",
+                              solidHeader = TRUE,
+                              collapsible = TRUE,
+                              DT::dataTableOutput("tbl.correlationMatrix"))
+                              )
+      )
+    )
+  )
 ))
     
 
-    # shinydashboard::tabItem(tabName = "tab_model",
-    #                         fluidPage(
-    #                           width =12,
-    #                           height = 500,
-    #                           tabBox(
-    #                             width = 12,
-    #                             title = "Model",
-    #                             # The id lets us use input$tabset1 on the server to find the current tab
-    #                             id = "tabsetModel", height = 500,
-    #                             tabPanel("Transformation",
-    #                                      fluidPage(
-    #                                        fluidRow(
-    #                                          column(2,
-    #                                                 selectInput("si.transformationFeature", label = h5("Feature"),
-    #                                                             choices = list(),
-    #                                                             selected = 1),
-    #                                                 selectInput("si.transformationType", label = h5("Transformation Type"),
-    #                                                             choices = list(),
-    #                                                             selected = 1),
-    #                                                 shiny::checkboxInput("cb.mirrorLogic", label = h5("Mirror Data"),
-    #                                                                      value = FALSE)),
-    #                                          column(10,
-    #                                                 plotOutput("plt.featureTransformFit"))
-    #                                        )),
-    #                                      hr(),
-    #                                      fluidPage(
-    #                                        fluidRow(
-    #                                          column(6,
-    #                                                 DT::dataTableOutput("tbl.featureTransformFit")),
-    #                                          column(6,
-    #                                                 DT::dataTableOutput("tbl.featureTransformTest"))))),
-    #                             tabPanel("Transformation Parameter",
-    #                                        DT::dataTableOutput("tbl.transformationParameter")
-    #                                      ),
-    #                             tabPanel("Model Parameter",
-    #                                        DT::dataTableOutput("tbl.modelParameter")
-    #                                      ),
-    #                             tabPanel("Model Quality",
-    #                                        DT::dataTableOutput("tbl.modelQuality")
-    #                                      ),
-    #                             tabPanel("Test Results",
-    #                                        DT::dataTableOutput("tbl.testResults")
-    #                                      )))),
-    # shinydashboard::tabItem(tabName = "tab_tidy",
-    #                         fluidPage(
-    #                           width =12,
-    #                           height = 500,
-    #                           tabBox(
-    #                             width = 12,
-    #                             title = "NAN explore",
-    #                             # The id lets us use input$tabset1 on the server to find the current tab
-    #                             id = "tabsetTidy", height = 500,
-    #                             tabPanel("Summary",
-    #                                      fluidPage(
-    #                                        fluidRow(
-    #                                          column(2,
-    #                                                 selectInput("si.nanSummary", label = h5("Information Detail"),
-    #                                                             choices = list("Statistics", "Details"),
-    #                                                             selected = 1)),
-    #                                          column(10,
-    #                                                 plotOutput("plt.nanSummary"))
-    #                                        )),
-    #                                      shiny::hr(),
-    #                                      shiny::fluidPage(
-    #                                        DT::dataTableOutput("tbl.nanSummary")
-    #                                      )),
-    #                             tabPanel("Tidy",
-    #                                      shiny::fluidPage(
-    #                                        shiny::fluidRow(
-    #                                          shiny::column(2,
-    #                                                        shiny::selectInput("si.nanHandleMethod", label = h5("Cleaning Method"),
-    #                                                                    choices = list(),
-    #                                                                    selected = 1),
-    #                                                        shiny::numericInput("ni.nanSeed", label = h5("Seed"),
-    #                                                                            value = 42),
-    #                                                        shiny::selectInput("si.nanHandleFeature", label = h5("Feature"),
-    #                                                                           choices = list(),
-    #                                                                           selected = 1)),
-    #                                          shiny::column(10,
-    #                                                      plotOutput("plt.nanCleaningSummary"))
-    #                                        )),
-    #                                      shiny::hr(),
-    #                                      shiny::fluidPage(
-    #                                        DT::dataTableOutput("tbl.nanCleaningSummary")
-    #                                      ))))),
-    # shinydashboard::tabItem(tabName = "tab_revise",
-    #                         shiny::fluidPage(
-    #                           width =12,
-    #                           height = 500,
-    #                           shinydashboard::tabBox(
-    #                             width = 12,
-    #                             title = "Revise Outliers",
-    #                             # The id lets us use input$tabset1 on the server to find the current tab
-    #                             id = "tabsetRevise", height = 500,
-    #                             shiny::tabPanel("Summary",
-    #                                             shiny::fluidPage(
-    #                                               shiny::fluidRow(
-    #                                                 shiny::column(2,
-    #                                                               shiny::selectInput("si.outlierSummaryPlt", label = h5("Plot Type"),
-    #                                                                                  choices=list("Histogram", "Heatmap"),
-    #                                                                                  selected = 1),
-    #                                                               shiny::selectInput("si.outlierSummaryTbl", label = h5("Information Detail"),
-    #                                                                           choices=list("Statistics", "Details"),
-    #                                                                           selected = 1)),
-    #                                                 shiny::column(10,
-    #                                                               shiny::plotOutput("plt.outlierHist"))
-    #                                               )),
-    #                                             shiny::hr(),
-    #                                             shiny::fluidPage(
-    #                                               DT::dataTableOutput("tbl.outlierSummary")
-    #                                             )),
-    #                             shiny::tabPanel("Revise",
-    #                                             shiny::fluidPage(
-    #                                               shiny::fluidRow(
-    #                                                 shiny::column(2,
-    #                                                               shiny::selectInput("si.outlierHandleMethod", label = h5("Cleaning Method"),
-    #                                                                                  choices = list(),
-    #                                                                                  selected = 1),
-    #                                                               shiny::numericInput("ni.outlierSeed", label = h5("Seed"),
-    #                                                                                   value = 42),
-    #                                                               shiny::selectInput("si.outlierHandleFeature", label = h5("Feature"),
-    #                                                                                  choices = list(),
-    #                                                                                  selected = 1)),
-    #                                                 shiny::column(10,
-    #                                                               plotOutput("plt.outlierCleaningSummary"))
-    #                                               )),
-    #                                             shiny::hr(),
-    #                                             shiny::fluidPage(
-    #                                               DT::dataTableOutput("tbl.outlierCleaningSummary")))
-    #                         ))),
+   
     # shinydashboard::tabItem(tabName = "tab_correlate",
     #                         shiny::fluidPage(
     #                           width = 12,

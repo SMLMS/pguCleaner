@@ -17,6 +17,10 @@ source(file = "../R/pguModel.R", local=TRUE)
 source(file = "../R/pguNormDist.R", local=TRUE)
 source(file = "../R/pguOptimizer.R", local=TRUE)
 source(file = "../R/pguMissings.R", local=TRUE)
+source(file = "../R/pguOutliers.R", local=TRUE)
+source(file = "../R/pguCorrelator.R", local=TRUE)
+source(file = "../R/pguRegressor.R", local=TRUE)
+
 # source(file = "../R/pgu_exporter.R", local=TRUE)
 # source(file = "../R/pgu_hdf5.R", local=TRUE)
 # source(file = "../R/pgu_data.R", local=TRUE)
@@ -37,7 +41,9 @@ shinyServer(function(input, output, session) {
   modelOptimized <- shiny::reactiveVal(value = FALSE)
   modelDefined <- shiny::reactiveVal(value = FALSE)
   nanCleaned <- shiny::reactiveVal(value = FALSE)
-  outlierCleaned <- shiny::reactiveVal(value = FALSE)
+  outlierDetected <- shiny::reactiveVal(value = FALSE)
+  
+  dataCorreleted <- shiny::reactiveVal(value = FALSE)
   ############
   # dataFrames
   ############
@@ -56,6 +62,9 @@ shinyServer(function(input, output, session) {
   featureModel <- pgu.normDist$new()
   optimizer <- pgu.optimizer$new()
   missings <- pgu.missings$new()
+  outliers <- pgu.outliers$new()
+  correlator <- pgu.correlator$new()
+  regressor <- pgu.regressor$new()
   
   
   ###############
@@ -91,7 +100,7 @@ shinyServer(function(input, output, session) {
         modelOptimized(FALSE)
         modelDefined(FALSE)
         nanCleaned(FALSE)
-        outlierCleaned(FALSE)
+        outlierDetected(FALSE)
       },
       error = function(e) {
         dataLoaded(FALSE)
@@ -168,7 +177,7 @@ shinyServer(function(input, output, session) {
       modelOptimized(FALSE)
       modelDefined(FALSE)
       nanCleaned(FALSE)
-      outlierCleaned(FALSE)
+      outlierDetected(FALSE)
       if (length(input$tbl.filterData_rows_all) < 1) {
         filterSet$resetRowIdx(data = rawData$rawData)
       }
@@ -216,7 +225,7 @@ shinyServer(function(input, output, session) {
       modelOptimized(FALSE)
       modelDefined(FALSE)
       nanCleaned(FALSE)
-      outlierCleaned(FALSE)
+      outlierDetected(FALSE)
       if (length(input$tbl.filterData_rows_all) < 1) {
         filterSet$resetRowIdx(data = rawData$rawData)
       }
@@ -565,7 +574,7 @@ shinyServer(function(input, output, session) {
   shiny::observeEvent(input$ab.trafoSetGlobal,{
     if(dataLoaded()){
       nanCleaned(FALSE)
-      outlierCleaned(FALSE)
+      outlierDetected(FALSE)
       progress <- shiny::Progress$new(session, min = 1, max = length(filteredData$numericFeatureNames))
       on.exit(progress$close())
       for (feature in filteredData$numericFeatureNames){
@@ -750,6 +759,226 @@ shinyServer(function(input, output, session) {
       
       output$plt.nanCleaningSummary <- shiny::renderPlot(missings$featurePlot(data = cleanedData$rawData, feature = input$si.nanHandleFeature))
       nanCleaned(TRUE)
+    }
+  })
+  
+  ########################
+  # reset outliers choices
+  ########################
+  shiny::observeEvent(input$ab.outliersReset,{
+    shiny::updateSelectInput(session,
+                             "si.outHandleMethod",
+                             selected = outliers$cleaningAgent)
+    
+    shiny::updateNumericInput(session,
+                              "ni.outSeed",
+                              value = outliers$seed)
+  })
+  
+  #################
+  # detect outliers
+  #################
+  shiny::observeEvent(input$ab.detectOutliers,{
+    if(modelDefined()){
+      scaledData$rawData %>%
+        outliers$resetOutliersParameter()
+      
+      switch (input$si.outSummary,
+              "Statistics" = output$tbl.outSummary <- DT::renderDataTable(outliers$outliersStatistics %>%
+                                                                            format.data.frame(scientific = FALSE, digits = 3) %>%
+                                                                            DT::datatable(options = list(
+                                                                              scrollX = TRUE,
+                                                                              scrollY = '350px',
+                                                                              paging = FALSE
+                                                                            ))),
+              "Outliers" = output$tbl.outSummary <- DT::renderDataTable(outliers$outlierTable(data = filteredData$rawData)),
+              "Data" = output$tbl.outSummary <- DT::renderDataTable(outliers$DataTable(data = filteredData$rawData))
+      )
+      output$plt.outSummary <- shiny::renderPlot(outliers$plotOutliersDistribution())
+      outlierDetected(TRUE)
+    }
+  })
+  
+  #################
+  # revise outliers
+  #################
+  shiny::observeEvent(input$ab.reviseOutliers,{
+    if(!outlierDetected()){
+      errorMessage <- sprintf("No outliers detected.", inFile$suffix)
+      shiny::showNotification(paste(errorMessage),type = "error", duration = 10)
+    }
+    # else if (!nanCleaned()){
+    #   errorMessage <- sprintf("No outliers detected.", inFile$suffix)
+    #   shiny::showNotification(paste(errorMessage),type = "error", duration = 10)
+    # }
+    else{
+      outliers$setCleaningAgent <- input$si.outHandleMethod
+      outliers$setSeed <- input$ni.outSeed
+      cleanedData$setRawData <- scaledData$rawData %>%
+        missings$handleMissings() %>%
+        outliers$handleOutliers() %>%
+        model$rescaleData() %>%
+        transformator$reverseMutateData()
+      
+      output$tbl.outCleaningSummary <- DT::renderDataTable(cleanedData$rawData %>%
+                                                             dplyr::select(input$si.outHandleFeature) %>%
+                                                             dplyr::slice(outliers$outliersIdxByFeature(feature = input$si.outHandleFeature)) %>%
+                                                             format.data.frame(scientific = TRUE, digits = 4) %>%
+                                                             DT::datatable(options = list(
+                                                               scrollX = TRUE,
+                                                               scrollY = '350px',
+                                                               paging = FALSE)))
+      output$plt.outCleaningSummary <- shiny::renderPlot(outliers$featurePlot(data = cleanedData$rawData, feature = input$si.outHandleFeature))
+    }
+  })
+  
+  #############################
+  # display outlier information
+  #############################
+  shiny::observeEvent(input$si.outSummary,{
+    if(outlierDetected()){
+      switch (input$si.outSummary,
+              "Statistics" = output$tbl.outSummary <- DT::renderDataTable(outliers$outliersStatistics %>%
+                                                                            format.data.frame(scientific = FALSE, digits = 3) %>%
+                                                                            DT::datatable(options = list(
+                                                                              scrollX = TRUE,
+                                                                              scrollY = '350px',
+                                                                              paging = FALSE
+                                                                            ))),
+              "Outliers" = output$tbl.outSummary <- DT::renderDataTable(outliers$outlierTable(data = filteredData$rawData)),
+              "Data" = output$tbl.outSummary <- DT::renderDataTable(outliers$DataTable(data = filteredData$rawData))
+      )
+    }
+  })
+  
+  shiny::observeEvent(input$si.outHandleFeature,{
+    if(outlierDetected()){
+      output$tbl.outCleaningSummary <- DT::renderDataTable(cleanedData$rawData %>%
+                                                             dplyr::select(input$si.outHandleFeature) %>%
+                                                             dplyr::slice(outliers$outliersIdxByFeature(feature = input$si.outHandleFeature)) %>%
+                                                             format.data.frame(scientific = TRUE, digits = 4) %>%
+                                                             DT::datatable(
+                                                               extensions = 'Buttons',
+                                                               options = list(
+                                                              dom = "Blfrtip",
+                                                               scrollX = TRUE,
+                                                               scrollY = '350px',
+                                                               paging = FALSE,
+                                                               buttons = c('csv'))))
+      
+      output$plt.outCleaningSummary <- shiny::renderPlot(outliers$featurePlot(data = cleanedData$rawData, feature = input$si.outHandleFeature))
+    }
+  })
+  
+  
+  ##############################
+  # calculate correlation Matrix
+  ##############################
+  shiny::observeEvent(input$ab.correlate,{
+    
+    
+    correlator$resetCorrelator(data = cleanedData$rawData)
+    regressor$resetRegressor(data = cleanedData$rawData)
+    dataCorreleted(TRUE)
+    
+    output$tbl.correlationMatrix <- DT::renderDataTable(
+      switch (input$si.correlationStat,
+              "Intercept" = {
+                regressor$printInterceptTbl()
+              },
+              "Slope" = {
+                regressor$printSlopeTbl()
+              },
+              "p.regression" = {
+                regressor$printPValueTbl()
+              },
+              "Rho" = {
+                correlator$printCoefficientTbl()
+              },
+              "p.correlation" = {
+                correlator$printPValueTbl()
+              }) %>% 
+        format.data.frame(scientific = TRUE, digits = 4) %>%
+        DT::datatable(
+          extensions = 'Buttons',
+          options = list(
+            dom = "Blfrtip",
+            scrollX = TRUE,
+            scrollY = '350px',
+            paging = FALSE,
+            buttons = c('csv'))))
+    
+    shiny::updateSelectInput(session, "si.regressionAbs",
+                             choices = filteredData$numericFeatureNames,
+                             selected = filteredData$numericFeatureNames[1])
+    shiny::updateSelectInput(session, "si.regressionOrd",
+                             choices = filteredData$numericFeatureNames,
+                             selected = filteredData$numericFeatureNames[1])
+    
+    regressor$setAbscissa <- input$si.regressionAbs
+    regressor$setOrdinate <- input$si.regressionOrd
+    
+    output$plt.regressionFeature <- shiny::renderPlot(
+      regressor$plotResult()
+    )
+    output$tbl.regressionFeature <- DT::renderDataTable({
+      regressor$printModel() %>%
+        format.data.frame(scientific = TRUE, digits = 4) %>%
+        DT::datatable(
+          extensions = 'Buttons',
+          options = list(
+            dom = "Blfrtip",
+            scrollX = TRUE,
+            scrollY = TRUE,
+            paging = FALSE,
+            buttons = c('csv')
+          )
+        )})
+    
+    output$tbl.correlationFeature <- DT::renderDataTable(
+      correlator$printModel(abscissa = input$si.regressionAbs,
+                            ordinate = input$si.regressionOrd) %>%
+        format.data.frame(scientific = TRUE, digits = 4) %>%
+        DT::datatable(
+          extensions = 'Buttons',
+          options = list(
+            dom = "Blfrtip",
+            scrollX = TRUE,
+            scrollY = TRUE,
+            paging = FALSE,
+            buttons = c('csv')
+          )
+        ))
+  })
+  
+  shiny::observeEvent(input$si.correlationStat,{
+    if(dataCorreleted()){
+      output$tbl.correlationMatrix <- DT::renderDataTable(
+        switch (input$si.correlationStat,
+                "Intercept" = {
+                  regressor$printInterceptTbl()
+                },
+                "Slope" = {
+                  regressor$printSlopeTbl()
+                },
+                "p.regression" = {
+                  regressor$printPValueTbl()
+                },
+                "Rho" = {
+                  correlator$printCoefficientTbl()
+                },
+                "p.correlation" = {
+                  correlator$printPValueTbl()
+                }) %>% 
+          format.data.frame(scientific = TRUE, digits = 4) %>%
+          DT::datatable(
+            extensions = 'Buttons',
+            options = list(
+              dom = "Blfrtip",
+              scrollX = TRUE,
+              scrollY = '350px',
+              paging = FALSE,
+              buttons = c('csv'))))
     }
   })
   
@@ -995,11 +1224,11 @@ shinyServer(function(input, output, session) {
     if (input$menue == "tab_tidy"){
       shiny::updateSelectInput(session,
                                "si.nanHandleMethod",
-                               choices = missings$cleaningAgentAlphabet,
-                               selected = missings$cleaningAgent)
+                               choices = outliers$cleaningAgentAlphabet,
+                               selected = outliers$cleaningAgent)
       
       if(!dataLoaded()){
-        output$plt.nanSummarx <- shiny::renderPlot(NULL)
+        output$plt.nanSummary <- shiny::renderPlot(NULL)
         output$tbl.nanSummary <- DT::renderDataTable(NULL)
         output$plt.nanCleaningSummary <- shiny::renderPlot(NULL)
         output$tbl.nanCleaningSummary <- DT::renderDataTable(NULL)
@@ -1052,7 +1281,79 @@ shinyServer(function(input, output, session) {
         )
         
       }
+    }
+    if (input$menue == "tab_revise"){
+      shiny::updateSelectInput(session,
+                               "si.outHandleMethod",
+                               choices = outliers$cleaningAgentAlphabet,
+                               selected = outliers$cleaningAgent)
+      
+      if(!dataLoaded()){
+        output$plt.outSummary <- shiny::renderPlot(NULL)
+        output$tbl.outSummary <- DT::renderDataTable(NULL)
+        output$plt.outCleaningSummary <- shiny::renderPlot(NULL)
+        output$tbl.outCleaningSummary <- DT::renderDataTable(NULL)
+        errorMessage <- sprintf("No data loaded.")
+        shiny::showNotification(paste(errorMessage),type = "error", duration = 10)
       }
+      else if(!modelDefined()){
+        shiny::updateSelectInput(session, "si.outHandleFeature",
+                                 choices = filteredData$numericFeatureNames,
+                                 selected = filteredData$numericFeatureNames[1])
+        output$plt.outSummary <- shiny::renderPlot(NULL)
+        output$tbl.outSummary <- DT::renderDataTable(NULL)
+        output$plt.outCleaningSummary <- shiny::renderPlot(NULL)
+        output$tbl.outCleaningSummary <- DT::renderDataTable(NULL)
+        errorMessage <- sprintf("No transformed dataset available.")
+        shiny::showNotification(paste(errorMessage),type = "error", duration = 10)
+      }
+      else if (!outlierDetected()){
+        output$plt.outCleaningSummary <- shiny::renderPlot(NULL)
+        output$tbl.outCleaningSummary <- DT::renderDataTable(NULL)
+        output$plt.outSummary <- shiny::renderPlot(NULL)
+        output$tbl.outSummary <- DT::renderDataTable(NULL)
+
+        
+        transformedData$setRawData  <- filteredData$rawData %>%
+          transformator$mutateData()
+        scaledData$setRawData <- transformedData$rawData %>%
+          model$scaleData()
+        
+        outliers$resetOutliersParameter(data = scaledData$rawData)
+        
+        shiny::updateSelectInput(session, "si.outHandleFeature",
+                                 choices = filteredData$numericFeatureNames,
+                                 selected = filteredData$numericFeatureNames[1])
+        
+      }
+    }
+    if(input$menue == "tab_correlate"){
+      if(!dataLoaded()){
+        output$plt.regressionFeature <- shiny::renderPlot(NULL)
+        output$tbl.regressionFeature <- DT::renderDataTable(NULL)
+        output$tbl.correlationFeature <- DT::renderDataTable(NULL)
+        output$tbl.correlationMatrix <- DT::renderDataTable(NULL)
+        errorMessage <- sprintf("No data loaded.")
+        shiny::showNotification(paste(errorMessage),type = "error", duration = 10)
+
+      }
+      else if (!dataCorreleted()){
+        output$plt.regressionFeature <- shiny::renderPlot(NULL)
+        output$tbl.regressionFeature <- DT::renderDataTable(NULL)
+        output$tbl.correlationFeature <- DT::renderDataTable(NULL)
+        output$tbl.correlationMatrix <- DT::renderDataTable(NULL)
+        errorMessage <- sprintf("So far, no correlation analysis has been performed for the currently selected data set.")
+        shiny::showNotification(paste(errorMessage),type = "error", duration = 10)
+      }
+      else{
+        shiny::updateSelectInput(session, "si.regressionAbs",
+                                 choices = filteredData$numericFeatureNames,
+                                 selected = filteredData$numericFeatureNames[1])
+        shiny::updateSelectInput(session, "si.regressionOrd",
+                                 choices = filteredData$numericFeatureNames,
+                                 selected = filteredData$numericFeatureNames[1])
+      }
+    }
   })
 })
 

@@ -44,13 +44,11 @@ pgu.correlator <- R6::R6Class("pgu.correlator",
                               ###################
                                public = list(
                                  initialize = function(data = "tbl_df"){
-                                   private$.featureNames <- data %>%
-                                     dplyr::select_if(is.numeric) %>%
-                                     colnames()
-                                   private$.method <- "spearman"
-                                   private$.coefficient <- self$resetMatrix(value = 0)
-                                   private$.pValue <- self$resetMatrix(value = 1)
-                                   self$createCorrelationMatrix(data)
+                                   if(class(data)[1] != "tbl_df"){
+                                     data <- tibble::tibble(names <- "none",
+                                                            values <- c(NA))
+                                   }
+                                   self$resetCorrelator(data)
                                  },
                                  finalize = function(){
                                    print("Instance of pgu.correlator removed from heap")
@@ -78,6 +76,16 @@ pgu.correlator <- R6::R6Class("pgu.correlator",
 ####################
 # public functions
 ####################
+pgu.correlator$set("public", "resetCorrelator", function(data = "tbl_df"){
+  private$.featureNames <- data %>%
+    dplyr::select_if(is.numeric) %>%
+    colnames()
+  private$.method <- "spearman"
+  private$.coefficient <- self$resetMatrix(value = 0)
+  private$.pValue <- self$resetMatrix(value = 0)
+  self$createCorrelationMatrix(data)
+})
+
 pgu.correlator$set("public", "resetMatrix", function(value = "numeric"){
   n = length(self$featureNames)
   df <- matrix(data = value,
@@ -122,4 +130,37 @@ pgu.correlator$set("public", "createCorrelationMatrix", function(data = "tbl_df"
       private$.pValue[ord, abs] <- self$test$p.value
     }
   }
+})
+
+#################
+# print functions
+#################
+pgu.correlator$set("public", "printModel", function(abscissa = "character", ordinate = "character"){
+  df <- data.frame(
+    abscissa = c(abscissa),
+    ordinate = c(ordinate),
+    rho = self$coefficient[ordinate, abscissa],
+    p.correlation = self$pValue[ordinate, abscissa]) %>%
+    t() %>%
+    as.data.frame() %>%
+    tibble::rownames_to_column("correlation parameter") %>%
+    tibble::as_tibble() %>%
+    dplyr::rename(value = "V1")
+  return(df)
+})
+
+pgu.correlator$set("public", "printCoefficientTbl", function(){
+  self$coefficient %>%
+    tibble::as_tibble() %>%
+    dplyr::mutate(features = self$featureNames) %>%
+    dplyr::select(features, dplyr::everything()) %>%
+    return()
+})
+
+pgu.correlator$set("public", "printPValueTbl", function(){
+  self$pValue %>%
+    tibble::as_tibble() %>%
+    dplyr::mutate(features = self$featureNames) %>%
+    dplyr::select(features, dplyr::everything()) %>%
+    return()
 })

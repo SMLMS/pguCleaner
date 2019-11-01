@@ -71,6 +71,10 @@ pgu.outliers <- R6::R6Class("pgu.outliers",
                                    private$.cleaningAgentAlphabet <- c("none", "median", "mean", "mu", "mc", "knn", "pmm", "cart", "rf", "amelia")
                                    self$setSeed <- 42.0
                                    self$setCleaningAgent <- self$cleaningAgentAlphabet[1]
+                                   if(class(data)[1] != "tbl_df"){
+                                     data <- tibble::tibble(names <- "none",
+                                                            values <- c(NA))
+                                   }
                                    self$resetOutliersParameter(data)
                                  },
                                  finalize = function(){
@@ -140,6 +144,20 @@ pgu.outliers$set("public", "outliersIdxByFeature", function(featureName = "chara
     return()
 })
 
+pgu.outliers$set("public", "outliersFeatureList", function(data = "tbl_df"){
+  outFeature <- c(rep("complete", nrow(data)))
+  if (nrow(self$outliers) > 0) {
+    for(i in seq(from = 1,to = nrow(self$outliers), by =1)){
+      if (grepl("complete", outFeature[self$outliers[[i,"measurement"]]])){
+        outFeature[self$outliers[[i,"measurement"]]] <- self$outliers[[i, "feature"]]
+      }
+      else{
+        outFeature[self$outliers[[i,"measurement"]]] <- "multiple"
+      }
+    }
+  }
+  return(outFeature)
+})
 #################
 # detect outliers
 #################
@@ -459,4 +477,103 @@ pgu.outliers$set("public", "cleanByAmelia", function(data = "tbl_df"){
                                            dplyr::pull(feature)))
   }
   return(data)
+})
+
+# output function
+pgu.outliers$set("public", "DataTable", function(data = "tbl_df"){
+  t <- data %>%
+    dplyr::mutate_if(is.numeric, round, 3) %>%
+    DT::datatable(options = list(scrollX = TRUE,
+                                scrollY = '350px',
+                                paging = FALSE))
+  for (featureName in self$outliersParameter[["features"]]){
+    featureOutlier <- self$outliers %>%
+      dplyr::filter(grepl(featureName, feature)) %>%
+      dplyr::mutate_if(is.numeric, round, 3)
+    if (nrow(featureOutlier)>0){
+      t <- DT::formatStyle(t,
+                           featureName,
+                           backgroundColor = styleEqual(data %>%
+                                                          dplyr::select(!!featureName) %>%
+                                                          dplyr::slice(featureOutlier[["measurement"]]) %>%
+                                                          unlist() %>%
+                                                          as.numeric() %>%
+                                                          round(digits = 3),
+                                                        featureOutlier[["color"]])
+      )
+    }
+  }
+  return(t)
+})
+
+pgu.outliers$set("public", "outlierTable", function(data = "tbl_df"){
+  idx <- self$outliers[["measurement"]][!duplicated(self$outliers[["measurement"]])]
+  t <- data %>%
+    dplyr::slice(idx) %>%
+    dplyr::mutate_if(is.numeric, round, 3) %>%
+    DT::datatable(
+      options = list(
+        scrollX = TRUE,
+        scrollY = '350px',
+        paging = FALSE)
+    )
+  for (featureName in self$outliersParameter[["features"]]){
+    featureOutlier <- self$outliers %>%
+      dplyr::filter(grepl(featureName, feature)) %>%
+      dplyr::mutate_if(is.numeric, round, 3)
+    if (nrow(featureOutlier)>0){
+      t <- DT::formatStyle(t,
+                           featureName,
+                           backgroundColor = styleEqual(data %>%
+                                                          dplyr::select(!!featureName) %>%
+                                                          dplyr::slice(featureOutlier[["measurement"]]) %>%
+                                                          unlist() %>%
+                                                          as.numeric() %>%
+                                                          round(digits = 3),
+                                                        featureOutlier[["color"]])
+      )
+    }
+  }
+  return(t)
+})
+
+pgu.outliers$set("public", "plotOutliersDistribution", function(){
+  p <- self$outliersStatistics %>%
+    tidyr::gather('low', 'high', key = "type", value="typeCount") %>%
+    dplyr::mutate(fraction = 100 * typeCount/absCount) %>%
+    ggplot2::ggplot(mapping = ggplot2::aes_string(x = "features", y = "fraction", fill = "type"), na.rm=TRUE)+
+    ggplot2::geom_col()+
+    ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 45, hjust = 1))
+  return(p)
+})
+
+pgu.outliers$set("public", "featureBarPlot", function(data = "tbl_df", feature = "character"){
+  p <- data %>%
+    ggplot2::ggplot(mapping = ggplot2::aes_string(x=feature), na.rm=TRUE) +
+    ggplot2::geom_bar(stat = "bin")
+  return(p)
+})
+
+pgu.outliers$set("public", "featureBoxPlotWithSubset", function(data = "tbl_df", feature = "character"){
+  outFeature <- self$outliersFeatureList(data)
+  p <- data %>%
+    dplyr::select(feature) %>%
+    dplyr::mutate(outFeature = outFeature) %>%
+    tidyr::gather_(key="feature", value="measurement", feature) %>%
+    ggplot2::ggplot(mapping=ggplot2::aes_string(x="feature",y="measurement"), na.rm=TRUE)+
+    ggplot2::geom_boxplot(na.rm=TRUE)+
+    ggplot2::geom_jitter(ggplot2::aes(colour=outFeature), na.rm=TRUE)
+  return(p)
+})
+
+pgu.outliers$set("public", "featurePlot", function(data = "tbl_df", feature = "character"){
+  p1 <- self$featureBoxPlotWithSubset(data, feature) +
+    ggplot2::theme(legend.position = c(0.9, 0.9),
+                   legend.key = ggplot2::element_blank(),
+                   legend.background = ggplot2::element_blank())
+  p2 <- self$featureBarPlot(data, feature) +
+    ggplot2::scale_x_discrete(position = "top") +
+    ggplot2::coord_flip()
+  p <- gridExtra::grid.arrange(p1,p2, layout_matrix = rbind(c(1,1,2),c(1,1,2)))
+  return(p)
 })

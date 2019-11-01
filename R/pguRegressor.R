@@ -60,13 +60,11 @@ pgu.regressor <- R6::R6Class("pgu.regressor",
                               ###################
                                public = list(
                                  initialize = function(data = "tbl_df"){
-                                   private$.featureNames <- data %>%
-                                     dplyr::select_if(is.numeric) %>%
-                                     colnames()
-                                   private$.intercept <- self$resetMatrix(value = 0)
-                                   private$.slope <- self$resetMatrix(value = 0)
-                                   private$.pValue <- self$resetMatrix(value = 1)
-                                   self$createRegressionMatrix(data)
+                                   if(class(data)[1] != "tbl_df"){
+                                     data <- tibble::tibble(names <- "none",
+                                                            values <- c(NA))
+                                   }
+                                   self$resetRegressor(data)
                                  },
                                  finalize = function(){
                                    print("Instance of pgu.regressor removed from heap")
@@ -97,6 +95,16 @@ pgu.regressor <- R6::R6Class("pgu.regressor",
 ####################
 # public functions
 ####################
+pgu.regressor$set("public", "resetRegressor", function(data = "tbl_df"){
+  private$.featureNames <- data %>%
+    dplyr::select_if(is.numeric) %>%
+    colnames()
+  private$.intercept <- self$resetMatrix(value = 0)
+  private$.slope <- self$resetMatrix(value = 1)
+  private$.pValue <- self$resetMatrix(value = 1)
+  self$createRegressionMatrix(data)
+})
+
 pgu.regressor$set("public", "resetDiagonal", function(data = "matrix"){
   if(nrow(data) == ncol(data)){
     for (i in 1:nrow(data)){
@@ -114,8 +122,10 @@ pgu.regressor$set("public", "resetMatrix", function(value = "numeric"){
   df <- matrix(data = value,
                nrow = n,
                ncol = n,
-               dimnames = list(self$featureNames, self$featureNames)) %>%
-    self$resetDiagonal()
+               dimnames = list(self$featureNames, self$featureNames))
+  if(sum(dim(df)) > 0){
+    self$resetDiagonal(df)
+  }
   return(df)
 })
 ##################
@@ -158,4 +168,86 @@ pgu.regressor$set("public", "createRegressionMatrix", function(data = "tbl_df"){
       }
     }
   }
+})
+
+#################
+# print functions
+#################
+pgu.regressor$set("public","printModel", function(){
+  df <- data.frame(
+    abscissa = as.character(c(names(self$model$model)[2])),
+    ordinate = as.character(c(names(self$model$model)[1])),
+    intercept = as.numeric(c(summary(self$model)$coefficients[1,1])),
+    slope = as.numeric(c(summary(self$model)$coefficients[2,1])),
+    p.regression = as.numeric(c(summary(self$model)$coefficients[2,4])))%>%
+    t() %>%
+    as.data.frame() %>%
+    tibble::rownames_to_column("regression parameter") %>%
+    tibble::as_tibble() %>%
+    dplyr::rename(value = "V1")
+  return(df)
+})
+
+pgu.regressor$set("public", "printInterceptTbl", function(){
+  self$intercept %>%
+    tibble::as_tibble() %>%
+    dplyr::mutate(features = self$featureNames) %>%
+    dplyr::select(features, dplyr::everything()) %>%
+    return()
+})
+
+pgu.regressor$set("public", "printSlopeTbl", function(){
+  self$slope %>%
+    tibble::as_tibble() %>%
+    dplyr::mutate(features = self$featureNames) %>%
+    dplyr::select(features, dplyr::everything()) %>%
+    return()
+})
+
+pgu.regressor$set("public", "printPValueTbl", function(){
+  self$pValue %>%
+    tibble::as_tibble() %>%
+    dplyr::mutate(features = self$featureNames) %>%
+    dplyr::select(features, dplyr::everything()) %>%
+    return()
+})
+
+
+################
+# plot functions
+################
+pgu.regressor$set("private", "plotRegression", function(){
+  p <- ggplot2::ggplot(data = self$model$model,
+                       aes_string(x=names(self$model$model)[2],
+                                  y=names(self$model$model)[1]),
+                       na.rm = TRUE)+
+    ggplot2::geom_point()+
+    ggplot2::stat_smooth(method = "lm")
+  return(p)
+})
+
+pgu.regressor$set("private", "plotResidualDist", function(){
+  p <- tibble::enframe(self$model$residuals, name=c("index")) %>%
+    ggplot2::ggplot(mapping=ggplot2::aes_string(x="value"), na.rm=TRUE)+
+    ggplot2::geom_histogram()
+  return(p)
+})
+
+pgu.regressor$set("private", "plotResidualBox", function(){
+  p <- tibble::enframe(self$model$residuals, name=c("index")) %>%
+    ggplot2::ggplot(mapping=ggplot2::aes_string(y="value"), na.rm=TRUE)+
+    ggplot2::geom_boxplot()+
+    ggplot2::theme(axis.title.x = element_blank(),
+                   axis.text.x = element_blank(),
+                   axis.ticks.x = element_blank(),
+                   axis.title.y = element_blank())
+  return(p)
+})
+
+pgu.regressor$set("public", "plotResult", function(){
+  p1 <- private$plotRegression()
+  p2 <- private$plotResidualBox()
+  p3 <- private$plotResidualDist()
+  p <- gridExtra::grid.arrange(p1,p2,p3, layout_matrix = rbind(c(1,1,1,2),c(1,1,1,3)))
+  return(p)
 })
