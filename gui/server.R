@@ -23,15 +23,6 @@ source(file = "../R/pguRegressor.R", local=TRUE)
 
 # source(file = "../R/pgu_exporter.R", local=TRUE)
 # source(file = "../R/pgu_hdf5.R", local=TRUE)
-# source(file = "../R/pgu_data.R", local=TRUE)
-# source(file = "../R/pgu_filter.R", local=TRUE)
-# source(file = "../R/pgu_transformator.R", local=TRUE)
-# source(file = "../R/pgu_normalizer.R", local=TRUE)
-# source(file = "../R/pgu_globals.R", local=TRUE)
-# source(file = "../R/pgu_cleaner.R", local=TRUE)
-# source(file = "../R/pgu_optimizer.R", local=TRUE)
-# source(file = "../R/pgu_regressor.R", local=TRUE)
-# source(file = "../R/pgu_correlator.R", local=TRUE)
 
 shinyServer(function(input, output, session) {
   ######################
@@ -43,7 +34,7 @@ shinyServer(function(input, output, session) {
   nanCleaned <- shiny::reactiveVal(value = FALSE)
   outlierDetected <- shiny::reactiveVal(value = FALSE)
   
-  dataCorreleted <- shiny::reactiveVal(value = FALSE)
+  dataCorrelated <- shiny::reactiveVal(value = FALSE)
   ############
   # dataFrames
   ############
@@ -359,17 +350,12 @@ shinyServer(function(input, output, session) {
       optimizer$resetOptimizer(data =filteredData$rawData)
       optimizer$setTrafoAlphabet <- trafoAlphabet
       optimizer$setMirror <- input$cb.wizardMirror
-      tryCatch({
-        optimizer$optimize(filteredData$rawData)
-        modelOptimized(TRUE)
-      },
-      error = function(e) {
-        modelOptimized(FALSE)
-        shiny::showNotification(paste(e),type = "error", duration = 10)
-      }
-      )
-      print("model Optimized")
-      print(modelOptimized())
+      progress <- shiny::Progress$new(session, min = 1, max = length(optimizer$trafoAlphabet)*2)
+      progress$set(message = "Optimizing model parameters", value = 1)
+      optimizer$optimize(data = filteredData$rawData, progress = progress)
+      modelOptimized(TRUE)
+      on.exit(progress$close())
+      
       output$tbl.optimizedTypes <- DT::renderDataTable(
         optimizer$optTypes %>%
           DT::datatable(options = list(
@@ -425,7 +411,7 @@ shinyServer(function(input, output, session) {
   # select trafo feature
   ######################
   shiny::observeEvent(input$si.transformationFeature,{
-    if(dataLoaded()){
+    if(modelDefined()){
       shiny::updateSelectInput(session, "si.transformationType", selected = transformator$trafoType(feature = input$si.transformationFeature))
       shiny::updateCheckboxInput(session, "cb.mirrorLogic", value = transformator$mirrorLogic(feature = input$si.transformationFeature))
 
@@ -462,7 +448,7 @@ shinyServer(function(input, output, session) {
   # reset trafo type
   #####################
   shiny::observeEvent(input$ab.trafoReset,{
-    if(dataLoaded()){
+    if(modelDefined()){
       shiny::updateSelectInput(session, "si.transformationType", selected = transformator$trafoType(feature = input$si.transformationFeature))
       shiny::updateCheckboxInput(session, "cb.mirrorLogic", value = transformator$mirrorLogic(feature = input$si.transformationFeature))
     }
@@ -472,7 +458,7 @@ shinyServer(function(input, output, session) {
   # set trafo type
   ################
   shiny::observeEvent(input$ab.trafoSet,{
-    if(dataLoaded()){
+    if(modelDefined()){
       transformator$setTrafoType(feature = input$si.transformationFeature,
         type = input$si.transformationType)
       
@@ -576,7 +562,9 @@ shinyServer(function(input, output, session) {
       nanCleaned(FALSE)
       outlierDetected(FALSE)
       progress <- shiny::Progress$new(session, min = 1, max = length(filteredData$numericFeatureNames))
+      progress$set(message = "Fitting model parameters", value = 1)
       on.exit(progress$close())
+
       for (feature in filteredData$numericFeatureNames){
         transformator$setTrafoType(feature = feature,
                                    type = input$si.transformationType)
@@ -584,49 +572,12 @@ shinyServer(function(input, output, session) {
                                      logic = input$cb.mirrorLogic)
       }
       
-      # feature Based for speed
       filteredData$rawData %>%
         transformator$estimateTrafoParameter()
-      i = 1
-      for (feature in filteredData$numericFeatureNames){
-        progress$set(value = i)
-        i <- i+1
-        filteredData$rawData %>%
-          transformator$estimateTrafoParameter()
-        featureModel$resetNormDist(data = filteredData$rawData %>%
-                                     transformator$mutateData() %>%
-                                     dplyr::select(feature))
-        tryCatch({
-          featureModel$fit()
-        },
-        error = function(e) {
-          #shiny::showNotification(paste(e),type = "error", duration = 10)
-          errorString <- sprintf("Error: could not optimize model parameters for  %s transformation of feature %s. Trafo type is reset to 'none'",
-                                 input$si.transformationType,
-                                 feature)
-          shiny::showNotification(paste(errorString),type = "error", duration = 1)
-          
-          # shiny::updateSelectInput(session, "si.transformationType", selected = "none")
-          # shiny::updateCheckboxInput(session, "cb.mirrorLogic", value = FALSE)
-          
-          transformator$setTrafoType(feature = feature,
-                                     type = "none")
-          transformator$setMirrorLogic(feature = feature,
-                                       logic = FALSE)
-          
-          filteredData$rawData %>%
-            transformator$estimateTrafoParameter()
-          
-          featureModel$resetNormDist(data = filteredData$rawData %>%
-                                       transformator$mutateData() %>%
-                                       dplyr::select(input$si.transformationFeature)
-          )
-          featureModel$fit()
-        }
-        )
-        
-        model$setNormDist(data = featureModel, feature = input$si.transformationFeature) 
-      }
+      
+      filteredData$rawData %>%
+        transformator$mutateData() %>%
+        model$resetModel(progress)
       modelDefined(TRUE)
       
       # log result to screen
@@ -743,8 +694,12 @@ shinyServer(function(input, output, session) {
       missings$setCleaningAgent <- input$si.nanHandleMethod
       missings$setSeed <- input$ni.nanSeed
       
+      progress <- shiny::Progress$new(session, min = 1, max = length(filteredData$numericFeatureNames))
+      progress$set(message = "Handle NANs", value = 1)
+      on.exit(progress$close())
+      
       cleanedData$setRawData <- scaledData$rawData %>%
-        missings$handleMissings() %>%
+        missings$handleMissings(progress = progress) %>%
         model$rescaleData() %>%
         transformator$reverseMutateData()
       
@@ -874,53 +829,45 @@ shinyServer(function(input, output, session) {
   ##############################
   # calculate correlation Matrix
   ##############################
-  shiny::observeEvent(input$ab.correlate,{
-    
-    
-    correlator$resetCorrelator(data = cleanedData$rawData)
+  shiny::observeEvent(input$ab.resetRegression,{
+    if(dataCorrelated()){
+      shiny::updateSelectInput(session, "si.regressionAbs",
+                               choices = filteredData$numericFeatureNames,
+                               selected = filteredData$numericFeatureNames[1])
+      shiny::updateSelectInput(session, "si.regressionOrd",
+                               choices = filteredData$numericFeatureNames [! filteredData$numericFeatureNames %in% input$si.regressionAbs],
+                               selected = filteredData$numericFeatureNames [! filteredData$numericFeatureNames %in% input$si.regressionAbs][1])
+      shiny::updateSelectInput(session, "si.regressionStats",
+                               selected = "Intercept")
+      shiny::updateCheckboxInput(session, "cb.robustRegression",
+                                 value = regressor$robust)
+      shiny::updateSelectInput(session, "si.regressionStats",
+                               selected = "Intercept")
+    }
+  })
+  
+  shiny::observeEvent(input$ab.regression,{
+    regressor$setRobust <- input$cb.robustRegression
     regressor$resetRegressor(data = cleanedData$rawData)
-    dataCorreleted(TRUE)
-    
-    output$tbl.correlationMatrix <- DT::renderDataTable(
-      switch (input$si.correlationStat,
-              "Intercept" = {
-                regressor$printInterceptTbl()
-              },
-              "Slope" = {
-                regressor$printSlopeTbl()
-              },
-              "p.regression" = {
-                regressor$printPValueTbl()
-              },
-              "Rho" = {
-                correlator$printCoefficientTbl()
-              },
-              "p.correlation" = {
-                correlator$printPValueTbl()
-              }) %>% 
-        format.data.frame(scientific = TRUE, digits = 4) %>%
-        DT::datatable(
-          extensions = 'Buttons',
-          options = list(
-            dom = "Blfrtip",
-            scrollX = TRUE,
-            scrollY = '350px',
-            paging = FALSE,
-            buttons = c('csv'))))
-    
+    correlator$resetCorrelator(data = cleanedData$rawData)
+
     shiny::updateSelectInput(session, "si.regressionAbs",
                              choices = filteredData$numericFeatureNames,
                              selected = filteredData$numericFeatureNames[1])
     shiny::updateSelectInput(session, "si.regressionOrd",
-                             choices = filteredData$numericFeatureNames,
-                             selected = filteredData$numericFeatureNames[1])
+                             choices = filteredData$numericFeatureNames [! filteredData$numericFeatureNames %in% input$si.regressionAbs],
+                             selected = filteredData$numericFeatureNames [! filteredData$numericFeatureNames %in% input$si.regressionAbs][1])
+    dataCorrelated(TRUE)
     
-    regressor$setAbscissa <- input$si.regressionAbs
-    regressor$setOrdinate <- input$si.regressionOrd
+    regressor$setAbscissa <- filteredData$numericFeatureNames[1]
+    regressor$setOrdinate <- filteredData$numericFeatureNames [! filteredData$numericFeatureNames %in% input$si.regressionAbs][1]
+    
+    regressor$createFeatureModel(data = cleanedData$rawData)
     
     output$plt.regressionFeature <- shiny::renderPlot(
       regressor$plotResult()
     )
+    
     output$tbl.regressionFeature <- DT::renderDataTable({
       regressor$printModel() %>%
         format.data.frame(scientific = TRUE, digits = 4) %>%
@@ -935,9 +882,11 @@ shinyServer(function(input, output, session) {
           )
         )})
     
+    correlator$setAbscissa <- input$si.regressionAbs
+    correlator$setOrdinate <- input$si.regressionOrd
+    
     output$tbl.correlationFeature <- DT::renderDataTable(
-      correlator$printModel(abscissa = input$si.regressionAbs,
-                            ordinate = input$si.regressionOrd) %>%
+      correlator$printFeature() %>%
         format.data.frame(scientific = TRUE, digits = 4) %>%
         DT::datatable(
           extensions = 'Buttons',
@@ -949,27 +898,101 @@ shinyServer(function(input, output, session) {
             buttons = c('csv')
           )
         ))
+    
+    shiny::updateSelectInput(session, "si.regressionStats",
+                             selected = "Intercept")
+    
+    output$tbl.regressionMatrix <- DT::renderDataTable(
+      regressor$printInterceptTbl() %>%
+        format.data.frame(scientific = TRUE, digits = 4) %>%
+        DT::datatable(
+          extensions = 'Buttons',
+          options = list(
+            dom = "Blfrtip",
+            scrollX = TRUE,
+            scrollY = '350px',
+            paging = FALSE,
+            buttons = c('csv')
+          )))
+    
   })
   
-  shiny::observeEvent(input$si.correlationStat,{
-    if(dataCorreleted()){
-      output$tbl.correlationMatrix <- DT::renderDataTable(
-        switch (input$si.correlationStat,
-                "Intercept" = {
-                  regressor$printInterceptTbl()
-                },
-                "Slope" = {
-                  regressor$printSlopeTbl()
-                },
-                "p.regression" = {
-                  regressor$printPValueTbl()
-                },
-                "Rho" = {
-                  correlator$printCoefficientTbl()
-                },
-                "p.correlation" = {
-                  correlator$printPValueTbl()
-                }) %>% 
+  shiny::observeEvent(input$si.regressionAbs,{
+    if(dataCorrelated()){
+      shiny::updateCheckboxInput(session, "cb.robustRegression",
+                                 value = regressor$robust)
+
+      shiny::updateSelectInput(session, "si.regressionOrd",
+                               choices = filteredData$numericFeatureNames [! filteredData$numericFeatureNames %in% input$si.regressionAbs],
+                               selected = filteredData$numericFeatureNames [! filteredData$numericFeatureNames %in% input$si.regressionAbs][1])
+    }
+  })
+  
+  shiny::observeEvent(input$si.regressionOrd,{
+    if(dataCorrelated()){
+      shiny::updateCheckboxInput(session, "cb.robustRegression",
+                                 value = regressor$robust)
+    }
+  })
+  
+  shiny::observeEvent(input$ab.refreshRegression,{
+    if(dataCorrelated()){
+      regressor$setAbscissa <- input$si.regressionAbs
+      regressor$setOrdinate <- input$si.regressionOrd
+      
+      regressor$createFeatureModel(data = cleanedData$rawData)
+      
+      output$plt.regressionFeature <- shiny::renderPlot(
+        regressor$plotResult()
+      )
+      
+      output$tbl.regressionFeature <- DT::renderDataTable({
+        regressor$printModel() %>%
+          format.data.frame(scientific = TRUE, digits = 4) %>%
+          DT::datatable(
+            extensions = 'Buttons',
+            options = list(
+              dom = "Blfrtip",
+              scrollX = TRUE,
+              scrollY = TRUE,
+              paging = FALSE,
+              buttons = c('csv')
+            )
+          )})
+      
+      correlator$setAbscissa <- input$si.regressionAbs
+      correlator$setOrdinate <- input$si.regressionOrd
+      
+      output$tbl.correlationFeature <- DT::renderDataTable(
+        correlator$printFeature() %>%
+          format.data.frame(scientific = TRUE, digits = 4) %>%
+          DT::datatable(
+            extensions = 'Buttons',
+            options = list(
+              dom = "Blfrtip",
+              scrollX = TRUE,
+              scrollY = TRUE,
+              paging = FALSE,
+              buttons = c('csv')
+            )
+          ))
+    }
+  })
+  
+  shiny::observeEvent(input$si.regressionStats,{
+    if(dataCorrelated()){
+      output$tbl.regressionMatrix <- DT::renderDataTable(
+        switch (input$si.regressionStats,
+                "Intercept" = regressor$printInterceptTbl(),
+                "Slope" = regressor$printSlopeTbl(),
+                "p.regression" = regressor$printPValueTbl(),
+                "r" = correlator$printRTbl(),
+                "p.Pearson" = correlator$printPPearsonTbl(),
+                "tau" = correlator$printTauTbl(),
+                "p.Kendall" = correlator$printPKendallTbl(),
+                "rho" = correlator$printRhoTbl(),
+                "p.Spearman" = correlator$printPSpearmanTbl()
+                ) %>% 
           format.data.frame(scientific = TRUE, digits = 4) %>%
           DT::datatable(
             extensions = 'Buttons',
@@ -1067,7 +1090,6 @@ shinyServer(function(input, output, session) {
           filterSet$filter()
         transformator$resetTrafoParameter(data = filteredData$rawData)
         transformator$estimateTrafoParameter(data = filteredData$rawData)
-        model$resetModel(data = filteredData$rawData)
         
         shiny::updateSelectInput(session, "si.transformationFeature",
                                  choices = filteredData$numericFeatureNames,
@@ -1075,151 +1097,10 @@ shinyServer(function(input, output, session) {
         shiny::updateSelectInput(session, "si.transformationType",
                                  choices = transformator$trafoAlphabet,
                                  selected = transformator$trafoType(feature = filteredData$numericFeatureNames[1]))
-        shiny::updateCheckboxInput(session, "cd.mirrorLogic",
-                                   value = transformator$mirrorLogic(feature = filteredData$numericFeatureNames[1]))
         
-        progress <-
-          shiny::Progress$new(session,
-                              min = 1,
-                              max = length(filteredData$numericFeatureNames))
-        on.exit(progress$close())
-        for (feature in filteredData$numericFeatureNames) {
-          transformator$setTrafoType(feature = feature,
-                                     type = input$si.transformationType)
-          transformator$setMirrorLogic(feature = feature,
-                                       logic = input$cb.mirrorLogic)
-        }
-        
-        # feature Based for speed
-        filteredData$rawData %>%
-          transformator$estimateTrafoParameter()
-        i = 1
-        for (feature in filteredData$numericFeatureNames) {
-          progress$set(value = i)
-          i <- i + 1
-          filteredData$rawData %>%
-            transformator$estimateTrafoParameter()
-          featureModel$resetNormDist(data = filteredData$rawData %>%
-                                       transformator$mutateData() %>%
-                                       dplyr::select(feature))
-          tryCatch({
-            featureModel$fit()
-          },
-          error = function(e) {
-            #shiny::showNotification(paste(e),type = "error", duration = 10)
-            errorString <-
-              sprintf(
-                "Error: could not optimize model parameters for  %s transformation of feature %s. Trafo type is reset to 'none'",
-                input$si.transformationType,
-                feature
-              )
-            shiny::showNotification(paste(errorString), type = "error", duration = 1)
-            
-            
-            transformator$setTrafoType(feature = feature,
-                                       type = "none")
-            transformator$setMirrorLogic(feature = feature,
-                                         logic = FALSE)
-            
-            filteredData$rawData %>%
-              transformator$estimateTrafoParameter()
-            
-            featureModel$resetNormDist(
-              data = filteredData$rawData %>%
-                transformator$mutateData() %>%
-                dplyr::select(input$si.transformationFeature)
-            )
-            featureModel$fit()
-          })
-          
-          model$setNormDist(data = featureModel,
-                            feature = input$si.transformationFeature)
-        }
-        modelDefined(TRUE)
-        
-        # log result to screen
-        shiny::updateSelectInput(
-          session,
-          "si.transformationType",
-          selected = transformator$trafoType(feature = input$si.transformationFeature)
-        )
-        shiny::updateCheckboxInput(
-          session,
-          "cb.mirrorLogic",
-          value = transformator$mirrorLogic(feature = input$si.transformationFeature)
-        )
-        
-        output$tbl.featureModelParameter <- DT::renderDataTable({
-          model$fitResultFeature(feature = input$si.transformationFeature) %>%
-            transformTibble() %>%
-            format.data.frame(scientific = TRUE, digits = 4) %>%
-            DT::datatable(options = list(
-              scrollX = TRUE,
-              scrollY = '350px',
-              paging = FALSE
-            ))
-        })
-        
-        output$tbl.featureModelQuality <- DT::renderDataTable({
-          model$testResultFeature(feature = input$si.transformationFeature) %>%
-            transformTibble() %>%
-            format.data.frame(scientific = TRUE, digits = 4) %>%
-            DT::datatable(options = list(
-              scrollX = TRUE,
-              scrollY = '350px',
-              paging = FALSE
-            ))
-        })
-        output$plt.featureTransformFit <- shiny::renderPlot(
-          model$plotModel(feature = input$si.transformationFeature))
-        
-        output$tbl.transformationParameter <-
-          DT::renderDataTable(
-            transformator$trafoParameter %>%
-              format.data.frame(scientific = TRUE, digits = 4),
-            options = list(
-              scrollX = TRUE,
-              scrollY = '350px',
-              paging = FALSE
-            )
-          )
-        
-        output$tbl.modelParameter <-
-          DT::renderDataTable(
-            model$modelParameterData() %>%
-              format.data.frame(scientific = TRUE, digits = 4),
-            options = list(
-              scrollX = TRUE,
-              scrollY = '350px',
-              paging = FALSE
-            )
-          )
-        
-        output$tbl.modelQuality <-
-          DT::renderDataTable(
-            model$modelQualityData() %>%
-              format.data.frame(scientific = TRUE, digits = 4),
-            options = list(
-              scrollX = TRUE,
-              scrollY = '350px',
-              paging = FALSE
-            )
-          )
-        
-        output$tbl.testResults <-
-          DT::renderDataTable(
-            model$testResultData() %>%
-              format.data.frame(scientific = TRUE, digits = 4),
-            options = list(
-              scrollX = TRUE,
-              scrollY = '350px',
-              paging = FALSE
-            )
-          )
+        errorMessage <- sprintf("No Model defined. Choose a global transformation type to start..")
+        shiny::showNotification(paste(errorMessage),type = "error", duration = 10)
       }
-      
-     
-      
     }
     if (input$menue == "tab_tidy"){
       shiny::updateSelectInput(session,
@@ -1327,21 +1208,21 @@ shinyServer(function(input, output, session) {
         
       }
     }
-    if(input$menue == "tab_correlate"){
+    if(input$menue == "tab_regression"){
       if(!dataLoaded()){
         output$plt.regressionFeature <- shiny::renderPlot(NULL)
         output$tbl.regressionFeature <- DT::renderDataTable(NULL)
         output$tbl.correlationFeature <- DT::renderDataTable(NULL)
-        output$tbl.correlationMatrix <- DT::renderDataTable(NULL)
+        output$tbl.regressionMatrix <- DT::renderDataTable(NULL)
         errorMessage <- sprintf("No data loaded.")
         shiny::showNotification(paste(errorMessage),type = "error", duration = 10)
 
       }
-      else if (!dataCorreleted()){
+      else if (!dataCorrelated()){
         output$plt.regressionFeature <- shiny::renderPlot(NULL)
         output$tbl.regressionFeature <- DT::renderDataTable(NULL)
         output$tbl.correlationFeature <- DT::renderDataTable(NULL)
-        output$tbl.correlationMatrix <- DT::renderDataTable(NULL)
+        output$tbl.regressionMatrix <- DT::renderDataTable(NULL)
         errorMessage <- sprintf("So far, no correlation analysis has been performed for the currently selected data set.")
         shiny::showNotification(paste(errorMessage),type = "error", duration = 10)
       }
@@ -1352,6 +1233,8 @@ shinyServer(function(input, output, session) {
         shiny::updateSelectInput(session, "si.regressionOrd",
                                  choices = filteredData$numericFeatureNames,
                                  selected = filteredData$numericFeatureNames[1])
+        shiny::updateCheckboxInput(session, "cb.robustRegression",
+                                   value = regressor$robust)
       }
     }
   })

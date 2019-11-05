@@ -10,8 +10,14 @@ pgu.correlator <- R6::R6Class("pgu.correlator",
                                private = list(
                                  .featureNames = "character",
                                  .method = "character",
-                                 .coefficient = "matrix",
-                                 .pValue = "matrix",
+                                 .r = "matrix",
+                                 .pPearson = "matrix",
+                                 .tau = "matrix",
+                                 .pKendall = "matrix",
+                                 .rho = "matrix",
+                                 .pSpearman = "matrix",
+                                 .abscissa = "character",
+                                 .ordinate = "character",
                                  .test = "htest"
                                ),
                               ##################
@@ -23,17 +29,45 @@ pgu.correlator <- R6::R6Class("pgu.correlator",
                                  },
                                  setFeatureNames = function(names = "character"){
                                    private$.featureNames <- names
-                                   private$.coefficient <- self$resetMatrix(value = 0)
-                                   private$.pValue <- self$resetMatrix(value = 1)
+                                   private$.r <- self$resetMatrix(value = 0)
+                                   private$.pPearson <- self$resetMatrix(value = 1)
+                                   private$.tau <- self$resetMatrix(value = 0)
+                                   private$.pKendall <- self$resetMatrix(value = 1)
+                                   private$.rho <- self$resetMatrix(value = 0)
+                                   private$.pSpearman <- self$resetMatrix(value = 1)
                                  },
                                  method = function(){
                                    return(private$.method)
                                  },
-                                 coefficient = function(){
-                                   return(private$.coefficient)
+                                 r = function(){
+                                   return(private$.r)
                                  },
-                                 pValue = function(){
-                                   return(private$.pValue)
+                                 pPearson = function(){
+                                   return(private$.pPearson)
+                                 },
+                                 tau = function(){
+                                   return(private$.tau)
+                                 },
+                                 pKendall = function(){
+                                   return(private$.pKendall)
+                                 },
+                                 rho = function(){
+                                   return(private$.rho)
+                                 },
+                                 pSpearman = function(){
+                                   return(private$.pSpearman)
+                                 },
+                                 abscissa = function(){
+                                   return(private$.abscissa)
+                                 },
+                                 setAbscissa = function(value = "character"){
+                                   private$.abscissa <- value 
+                                 },
+                                 ordinate = function(){
+                                   return(private$.ordinate)
+                                 },
+                                 setOrdinate = function(value = "character"){
+                                   private$.ordinate <- value
                                  },
                                  test = function(){
                                    return(private$.test)
@@ -80,10 +114,14 @@ pgu.correlator$set("public", "resetCorrelator", function(data = "tbl_df"){
   private$.featureNames <- data %>%
     dplyr::select_if(is.numeric) %>%
     colnames()
-  private$.method <- "spearman"
-  private$.coefficient <- self$resetMatrix(value = 0)
-  private$.pValue <- self$resetMatrix(value = 0)
-  self$createCorrelationMatrix(data)
+  private$.method <- c("pearson", "kendall","spearman")
+  private$.r <- self$resetMatrix(value = 0)
+  private$.pPearson <- self$resetMatrix(value = 1)
+  private$.tau <- self$resetMatrix(value = 0)
+  private$.pKendall <- self$resetMatrix(value = 1)
+  private$.rho <- self$resetMatrix(value = 0)
+  private$.pSpearman <- self$resetMatrix(value = 1)
+  self$correlate(data)
 })
 
 pgu.correlator$set("public", "resetMatrix", function(value = "numeric"){
@@ -110,37 +148,75 @@ pgu.correlator$set("public", "featureIdx", function(feature = "character"){
 #######################
 # correlation functions
 #######################
-pgu.correlator$set("public", "calcCorrelationNumeric", function(abscissa = "numeric", ordinate = "numeric"){
+pgu.correlator$set("public", "calcCorrelationNumeric", function(abscissa = "numeric", ordinate = "numeric", method = "character"){
   private$.test <- stats::cor.test(x = abscissa,
                                    y = ordinate,
                                    alternative = "two.sided",
                                    exact = FALSE,
-                                   method = self$method)
+                                   method = method)
 })
 
-pgu.correlator$set("public", "createCorrelationMatrix", function(data = "tbl_df"){
-  n = length(self$featureNames)
+pgu.correlator$set("public", "createCorrelationMatrixPearson", function(data = "tbl_df"){
   for (abs in self$featureNames){
     for (ord in self$featureNames){
       self$calcCorrelationNumeric(abscissa = data %>%
                                     dplyr::pull(abs),
                                   ordinate = data %>%
-                                    dplyr::pull(ord))
-      private$.coefficient[ord,abs] <-self$test$estimate[[1]]
-      private$.pValue[ord, abs] <- self$test$p.value
+                                    dplyr::pull(ord),
+                                  method = self$method[1])
+      private$.r[ord,abs] <-self$test$estimate[[1]]
+      private$.pPearson[ord, abs] <- self$test$p.value
     }
   }
+})
+
+pgu.correlator$set("public", "createCorrelationMatrixKendall", function(data = "tbl_df"){
+  for (abs in self$featureNames){
+    for (ord in self$featureNames){
+      self$calcCorrelationNumeric(abscissa = data %>%
+                                    dplyr::pull(abs),
+                                  ordinate = data %>%
+                                    dplyr::pull(ord),
+                                  method = self$method[2])
+      private$.tau[ord,abs] <-self$test$estimate[[1]]
+      private$.pKendall[ord, abs] <- self$test$p.value
+    }
+  }
+})
+
+pgu.correlator$set("public", "createCorrelationMatrixSpearman", function(data = "tbl_df"){
+  for (abs in self$featureNames){
+    for (ord in self$featureNames){
+      self$calcCorrelationNumeric(abscissa = data %>%
+                                    dplyr::pull(abs),
+                                  ordinate = data %>%
+                                    dplyr::pull(ord),
+                                  method = self$method[3])
+      private$.rho[ord,abs] <-self$test$estimate[[1]]
+      private$.pSpearman[ord, abs] <- self$test$p.value
+    }
+  }
+})
+
+pgu.correlator$set("public", "correlate", function(data = "tbl_df"){
+  self$createCorrelationMatrixPearson(data)
+  self$createCorrelationMatrixKendall(data)
+  self$createCorrelationMatrixSpearman(data)
 })
 
 #################
 # print functions
 #################
-pgu.correlator$set("public", "printModel", function(abscissa = "character", ordinate = "character"){
+pgu.correlator$set("public", "printFeature", function(){
   df <- data.frame(
-    abscissa = c(abscissa),
-    ordinate = c(ordinate),
-    rho = self$coefficient[ordinate, abscissa],
-    p.correlation = self$pValue[ordinate, abscissa]) %>%
+    abscissa = self$abscissa,
+    ordinate = self$ordinate,
+    r = self$r[self$ordinate, self$abscissa],
+    p.Pearson = self$pPearson[self$ordinate, self$abscissa],
+    tau = self$tau[self$ordinate, self$abscissa],
+    p.Kendall = self$pPearson[self$ordinate, self$abscissa],
+    rho = self$rho[self$ordinate, self$abscissa],
+    p.Spearman = self$pSpearman[self$ordinate, self$abscissa]) %>%
     t() %>%
     as.data.frame() %>%
     tibble::rownames_to_column("correlation parameter") %>%
@@ -149,16 +225,48 @@ pgu.correlator$set("public", "printModel", function(abscissa = "character", ordi
   return(df)
 })
 
-pgu.correlator$set("public", "printCoefficientTbl", function(){
-  self$coefficient %>%
+pgu.correlator$set("public", "printRTbl", function(){
+  self$r %>%
     tibble::as_tibble() %>%
     dplyr::mutate(features = self$featureNames) %>%
     dplyr::select(features, dplyr::everything()) %>%
     return()
 })
 
-pgu.correlator$set("public", "printPValueTbl", function(){
-  self$pValue %>%
+pgu.correlator$set("public", "printPPearsonTbl", function(){
+  self$pPearson %>%
+    tibble::as_tibble() %>%
+    dplyr::mutate(features = self$featureNames) %>%
+    dplyr::select(features, dplyr::everything()) %>%
+    return()
+})
+
+pgu.correlator$set("public", "printTauTbl", function(){
+  self$tau %>%
+    tibble::as_tibble() %>%
+    dplyr::mutate(features = self$featureNames) %>%
+    dplyr::select(features, dplyr::everything()) %>%
+    return()
+})
+
+pgu.correlator$set("public", "printPKendallTbl", function(){
+  self$pKendall %>%
+    tibble::as_tibble() %>%
+    dplyr::mutate(features = self$featureNames) %>%
+    dplyr::select(features, dplyr::everything()) %>%
+    return()
+})
+
+pgu.correlator$set("public", "printRhoTbl", function(){
+  self$rho %>%
+    tibble::as_tibble() %>%
+    dplyr::mutate(features = self$featureNames) %>%
+    dplyr::select(features, dplyr::everything()) %>%
+    return()
+})
+
+pgu.correlator$set("public", "printPSpearmanTbl", function(){
+  self$pSpearman %>%
     tibble::as_tibble() %>%
     dplyr::mutate(features = self$featureNames) %>%
     dplyr::select(features, dplyr::everything()) %>%

@@ -214,29 +214,26 @@ pgu.optimizer$set("public", "updateOptParameter", function(model = "pgu.model", 
 ########################
 # optimization functions
 ########################
-pgu.optimizer$set("public", "optimize", function(data  = "tbl_df"){
-  print(head(data))
+pgu.optimizer$set("public", "optimize", function(data  = "tbl_df", progress = "Progress"){
   transformator <- pgu.transformator$new(data)
   mirrorLogic <- c(FALSE)
   if (self$mirror){
     mirrorLogic <- c(mirrorLogic, TRUE)
   }
+  i <- 0
   for (logic in mirrorLogic){
     transformator <- self$updateMirrorLogic(transformator, logic)
     for (type  in self$trafoAlphabet){
+      if(("shiny" %in% (.packages())) & (class(progress)[1] == "Progress")){
+        progress$set(value = i)
+        i <- i+1
+      }
       transformator <- self$updateTrafoType(transformator, type)
       transformator$estimateTrafoParameter(data)
       model <- pgu.model$new(data %>%
                                transformator$mutateData())
-      tryCatch({
-        model$fitData()
-        self$updateOptParameter(model, type, logic)
-      },
-      error = function(e){
-        print(e)
-        warning("oops")
-      })
-  #     self$updateOptParameter(model, type, logic)
+      model$fitData()
+      self$updateOptParameter(model, type, logic)
     }
   }
 })

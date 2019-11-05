@@ -187,29 +187,34 @@ pgu.missings$set("public", "findMissings", function(data = "tbl_df"){
 #################
 # handle missings
 #################
-pgu.missings$set("public", "handleMissings", function(data = "tbl_df"){
+pgu.missings$set("public", "handleMissings", function(data = "tbl_df", progress = "Progress"){
   if(is.na(self$cleaningAgent)){
     print("Warning: Error in pgu.missings cleaningAgent is not valid. Will be set to none.")
     self$setCleaningAgent <- "none"
   }
   cleanedData <- switch((self$cleaningAgent),
                        "none" = data,
-                       "median" = self$cleanByMedian(data),
-                       "mean" = self$cleanByMean(data),
-                       "mu" = self$cleanByExpectationValue(data),
-                       "mc" = self$cleanByMC(data),
-                       "knn" = self$cleanByKnn(data),
-                       "pmm" = self$cleanByPmm(data),
-                       "cart" = self$cleanByCart(data),
-                       "rf" = self$cleanByRf(data),
-                       "amelia" = self$cleanByAmelia(data),
-                       "amelia_bound" = self$cleanByAmeliaBound(data)
+                       "median" = self$cleanByMedian(data, progress),
+                       "mean" = self$cleanByMean(data, progress),
+                       "mu" = self$cleanByExpectationValue(data, progress),
+                       "mc" = self$cleanByMC(data, progress),
+                       "knn" = self$cleanByKnn(data, progress),
+                       "pmm" = self$cleanByPmm(data, progress),
+                       "cart" = self$cleanByCart(data, progress),
+                       "rf" = self$cleanByRf(data, progress),
+                       "amelia" = self$cleanByAmelia(data, progress),
+                       "amelia_bound" = self$cleanByAmeliaBound(data, progress)
   )
   return(cleanedData)
 })
 
-pgu.missings$set("public", "cleanByMedian", function(data = "tbl_df"){
+pgu.missings$set("public", "cleanByMedian", function(data = "tbl_df", progress = "Progress"){
+  i <- 1
   for (feature in self$missingsParameter[["features"]]){
+    if(("shiny" %in% (.packages())) & (class(progress)[1] == "Progress")){
+      progress$set(value = i)
+      i <- i+1
+    }
     indices <- self$missingsIdxByFeature(feature)
     data <- data %>%
       dplyr::mutate(!!feature := replace(!!as.name(feature),
@@ -219,8 +224,13 @@ pgu.missings$set("public", "cleanByMedian", function(data = "tbl_df"){
   return(data)
 })
 
-pgu.missings$set("public", "cleanByMean", function(data = "tbl_df"){
+pgu.missings$set("public", "cleanByMean", function(data = "tbl_df", progress = "Progress"){
+  i <- 1
   for (feature in self$missingsParameter[["features"]]){
+    if(("shiny" %in% (.packages())) & (class(progress)[1] == "Progress")){
+      progress$set(value = i)
+      i <- i+1
+    }
     indices <- self$missingsIdxByFeature(feature)
     data <- data %>%
       dplyr::mutate(!!feature := replace(!!as.name(feature),
@@ -230,8 +240,13 @@ pgu.missings$set("public", "cleanByMean", function(data = "tbl_df"){
   return(data)
 })
 
-pgu.missings$set("public", "cleanByExpectationValue", function(data = "tbl_df"){
+pgu.missings$set("public", "cleanByExpectationValue", function(data = "tbl_df", progress = "Progress"){
+  i <- 1
   for (feature in self$missingsParameter[["features"]]){
+    if(("shiny" %in% (.packages())) & (class(progress)[1] == "Progress")){
+      progress$set(value = i)
+      i <- i+1
+    }
     indices <- self$missingsIdxByFeature(feature)
     data <- data %>%
       dplyr::mutate(!!feature := replace(!!as.name(feature),
@@ -241,8 +256,13 @@ pgu.missings$set("public", "cleanByExpectationValue", function(data = "tbl_df"){
   return(data)
 })
 
-pgu.missings$set("public", "cleanByMC", function(data = "tbl_df"){
+pgu.missings$set("public", "cleanByMC", function(data = "tbl_df", progress = "Progress"){
+  i <- 1
   for (feature in self$missingsParameter[["features"]]){
+    if(("shiny" %in% (.packages())) & (class(progress)[1] == "Progress")){
+      progress$set(value = i)
+      i <- i+1
+    }
     indices <- self$missingsIdxByFeature(feature)
     mcVal <- stats::rnorm(n = length(indices),
                           mean = 0.0,
@@ -256,7 +276,10 @@ pgu.missings$set("public", "cleanByMC", function(data = "tbl_df"){
 })
 
 
-pgu.missings$set("public", "cleanByKnn", function(data = "tbl_df"){
+pgu.missings$set("public", "cleanByKnn", function(data = "tbl_df", progress = "Progress"){
+  if(("shiny" %in% (.packages())) & (class(progress)[1] == "Progress")){
+    progress$set(value = length(self$missingsParameter[["features"]]))
+  }
   data %>%
     as.data.frame() %>%
     DMwR::knnImputation(k=3,
@@ -268,7 +291,10 @@ pgu.missings$set("public", "cleanByKnn", function(data = "tbl_df"){
 })
 
 
-pgu.missings$set("public", "cleanByPmm", function(data = "tbl_df"){
+pgu.missings$set("public", "cleanByPmm", function(data = "tbl_df", progress = "Progress"){
+  if(("shiny" %in% (.packages())) & (class(progress)[1] == "Progress")){
+    progress$set(value = length(self$missingsParameter[["features"]]))
+  }
   data %>%
     as.data.frame() %>%
     mice::mice(m=5,
@@ -280,7 +306,10 @@ pgu.missings$set("public", "cleanByPmm", function(data = "tbl_df"){
     return()
 })
 
-pgu.missings$set("public", "cleanByCart", function(data = "tbl_df"){
+pgu.missings$set("public", "cleanByCart", function(data = "tbl_df", progress = "Progress"){
+  if(("shiny" %in% (.packages())) & (class(progress)[1] == "Progress")){
+    progress$set(value = length(self$missingsParameter[["features"]]))
+  }
   data %>%
     as.data.frame() %>%
     mice::mice(minbucket = 3,
@@ -291,7 +320,10 @@ pgu.missings$set("public", "cleanByCart", function(data = "tbl_df"){
     return()
 })
 
-pgu.missings$set("public", "cleanByRf", function(data = "tbl_df"){
+pgu.missings$set("public", "cleanByRf", function(data = "tbl_df", progress = "Progress"){
+  if(("shiny" %in% (.packages())) & (class(progress)[1] == "Progress")){
+    progress$set(value = length(self$missingsParameter[["features"]]))
+  }
   data %>%
     as.data.frame() %>%
     mice::mice(ntree = 3,
@@ -302,7 +334,10 @@ pgu.missings$set("public", "cleanByRf", function(data = "tbl_df"){
     return()
 })
 
-pgu.missings$set("public", "cleanByAmelia", function(data = "tbl_df"){
+pgu.missings$set("public", "cleanByAmelia", function(data = "tbl_df", progress = "Progress"){
+  if(("shiny" %in% (.packages())) & (class(progress)[1] == "Progress")){
+    progress$set(value = length(self$missingsParameter[["features"]]))
+  }
   ameliaOutput <- data %>%
     Amelia::amelia(m = 1, parallel = "multicore", ncpus = 8)
   ameliaOutput$imputations[[1]] %>%
@@ -310,7 +345,10 @@ pgu.missings$set("public", "cleanByAmelia", function(data = "tbl_df"){
     return()
 })
 
-pgu.missings$set("public", "cleanByAmeliaBound", function(data = "tbl_df"){
+pgu.missings$set("public", "cleanByAmeliaBound", function(data = "tbl_df", progress = "Progress"){
+  if(("shiny" %in% (.packages())) & (class(progress)[1] == "Progress")){
+    progress$set(value = length(self$missingsParameter[["features"]]))
+  }
   tblBounds = data.frame(column=c(1:ncol(data)),
                          lower=c(0),
                          upper=sapply(data,stats::quantile,probs = c(0.25),names=FALSE, na.rm = TRUE)) %>%

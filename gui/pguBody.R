@@ -552,10 +552,10 @@ body <- shinydashboard::dashboardBody(shinydashboard::tabItems(
                                     )
                                   )))
                             ))),
-  shinydashboard::tabItem(tabName = "tab_correlate",
+  shinydashboard::tabItem(tabName = "tab_regression",
                           shiny::fluidPage(
                             width = 12,
-                            title = "Correlation and Regression",
+                            title = "Regression",
                             id = "tabsetCorrelation",
                             shiny::fluidRow(
                               shiny::column(
@@ -581,16 +581,30 @@ body <- shinydashboard::dashboardBody(shinydashboard::tabItems(
                                     selected = 1
                                   ),
                                   shiny::selectInput(
-                                    "si.correlationStat",
+                                    "si.regressionStats",
                                     width = "100%",
                                     label = h5("Statistics"),
-                                    choices = list("Intercept", "Slope", "p.regression", "Rho", "p.correlation"),
+                                    choices = list("Intercept",
+                                                   "Slope",
+                                                   "p.Regression",
+                                                   "r", "p.Pearson",
+                                                   "tau", "p.Kendall",
+                                                   "rho", "p.Spearman"),
                                     selected = 1
                                   ),
-                                  shiny::hr(),
+                                  shiny::checkboxInput(
+                                    "cb.robustRegression",
+                                    label = h5("robust"),
+                                    value = FALSE
+                                  ),
                                   shiny::actionButton(
-                                    inputId = "ab.correlate",
-                                    label = "update",
+                                    inputId = "ab.regression",
+                                    label = "calculate",
+                                    width = "100%"
+                                  ),
+                                  shiny::actionButton(
+                                    inputId = "ab.refreshRegression",
+                                    label = "refresh",
                                     width = "100%"
                                   ),
                                   shiny::actionButton(
@@ -631,7 +645,7 @@ body <- shinydashboard::dashboardBody(shinydashboard::tabItems(
                               status = "primary",
                               solidHeader = TRUE,
                               collapsible = TRUE,
-                              DT::dataTableOutput("tbl.correlationMatrix"))
+                              DT::dataTableOutput("tbl.regressionMatrix"))
                               )
       )
     )

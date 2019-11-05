@@ -92,10 +92,10 @@ pgu.model$set("public", "resetModelList", function(data = "tbl_df"){
   private$.modelList <- results
 })
 
-pgu.model$set("public", "resetModel", function(data = "tbl_df"){
+pgu.model$set("public", "resetModel", function(data = "tbl_df", progress = "Progress"){
   self$resetModelParameter(data)
   self$resetModelList(data)
-  self$fitData()
+  self$fitData(progress)
 })
 
 pgu.model$set("public", "setNormDist", function(data = "pgu.normDist", feature = "character"){
@@ -125,13 +125,25 @@ pgu.model$set("public", "featureIdx", function(feature = "character"){
 pgu.model$set("public", "fitFeature", function(feature = "character"){
   idx <- match(feature, self$modelParameter[["features"]])
   if(!is.na(idx)){
-    private$.modelList[[feature]]$fit()
-    self$logFitResultsFeature(feature)
+    tryCatch({
+      private$.modelList[[feature]]$fit()
+      self$logFitResultsFeature(feature)
+    },
+    error = function(e){
+      self$logFailedFitResultsFeature(feature)
+      print(e)
+    }
+    )
   }
 })
 
-pgu.model$set("public", "fitData", function(){
+pgu.model$set("public", "fitData", function(progress = "Progress"){
+  i <- 1
   for (feature in self$modelParameter[["features"]]){
+    if(("shiny" %in% (.packages())) & (class(progress)[1] == "Progress")){
+      progress$set(value = i)
+      i <- i+1
+    }
     idx <- self$featureIdx(feature)
     if(!is.na(idx)){
       self$fitFeature(feature)
@@ -163,27 +175,26 @@ pgu.model$set("public", "logFitResultsFeature", function(feature = "character"){
   }
 })
 
-pgu.model$set("public", "logFitResultsData", function(){
-  for (feature in self$modelParameter[["features"]]){
-    idx <- self$featureIdx(feature)
-    if(!is.na(idx)){
-      self$logFitResultsFeature(feature)
-    }
+pgu.model$set("public", "logFailedFitResultsFeature", function(feature = "character"){
+  idx <- self$featureIdx(feature)
+  if(!is.na(idx)){
+    private$.modelParameter[idx, "mu"] <- NA
+    private$.modelParameter[idx, "sigma"] <- NA
+    private$.modelParameter[idx, "logLikelihood"] <- NA
+    private$.modelParameter[idx, "dataPoints"] <- NA
+    private$.modelParameter[idx, "degOfFreedom"] <- NA
+    private$.modelParameter[idx, "bic"] <- NA
+    private$.modelParameter[idx, "aic"] <- NA
+    private$.modelParameter[idx, "aicc"] <- NA
+    private$.modelParameter[idx, "rmse"] <- NA
+    private$.modelParameter[idx, "w.shapiro"] <- NA
+    private$.modelParameter[idx, "p.shapiro"] <- NA
+    private$.modelParameter[idx, "d.kolmogorow"] <- NA
+    private$.modelParameter[idx, "p.kolmogorow"] <- NA
+    private$.modelParameter[idx, "a.anderson"] <- NA
+    private$.modelParameter[idx, "p.anderson"] <- NA
   }
 })
-
-####################
-# compound functions
-####################
-# pgu.model$set("public", "fitFeature", function(feature = "character"){
-#   self$fitFeature(feature)
-#   self$logFitResultsFeature(feature)
-# })
-# 
-# pgu.model$set("public", "fitData", function(){
-#   self$fitData()
-#   self$logFitResultsData()
-# })
 
 ############
 # scale data

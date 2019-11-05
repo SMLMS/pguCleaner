@@ -1,6 +1,7 @@
 library("R6")
 library("tidyverse")
 library("stats")
+library("robust")
 library("DT")
 library("gridExtra")
 
@@ -11,11 +12,14 @@ pgu.regressor <- R6::R6Class("pgu.regressor",
                                private = list(
                                  .featureNames = "character",
                                  .intercept = "matrix",
+                                 .pIntercept = "matrix",
                                  .slope = "matrix",
-                                 .pValue = "matrix",
+                                 .pSlope = "matrix",
                                  .abscissa = "character",
                                  .ordinate = "character",
-                                 .model = "lm" 
+                                 .robust = "logical",
+                                 # .model = "lm"
+                                 .model = "lmRob"
                                ),
                               ##################
                               # accessor methods
@@ -27,17 +31,21 @@ pgu.regressor <- R6::R6Class("pgu.regressor",
                                  setFeaturNames = function(names = "character"){
                                    private$.featureNames <- names
                                    private$.intercept <- self$resetMatrix(value = 0)
+                                   private$.pIntercept <- self$resetMatrix(value = 1)
                                    private$.slope <- self$resetMatrix(value = 0)
-                                   private$.pValue <- self$resetMatrix(value = 1)
+                                   private$.pSlope <- self$resetMatrix(value = 1)
                                  },
                                  intercept = function(){
                                    return(private$.intercept)
                                  },
+                                 pIntercept = function(){
+                                   return(private$.pIntercept)
+                                 },
                                  slope = function(){
                                    return(private$.slope)
                                  },
-                                 pValue = function(){
-                                   return(private$.pValue)
+                                 pSlope = function(){
+                                   return(private$.pSlope)
                                  },
                                  abscissa = function(){
                                    return(private$.abscissa)
@@ -50,6 +58,12 @@ pgu.regressor <- R6::R6Class("pgu.regressor",
                                  },
                                  setOrdinate = function(feature = "character"){
                                    private$.ordinate <- feature
+                                 },
+                                 robust = function(){
+                                   return(private$.robust)
+                                 },
+                                 setRobust = function(value = "logical") {
+                                   private$.robust <- value
                                  },
                                  model = function(){
                                    return(private$.model)
@@ -64,6 +78,7 @@ pgu.regressor <- R6::R6Class("pgu.regressor",
                                      data <- tibble::tibble(names <- "none",
                                                             values <- c(NA))
                                    }
+                                   self$setRobust <- FALSE
                                    self$resetRegressor(data)
                                  },
                                  finalize = function(){
@@ -100,9 +115,15 @@ pgu.regressor$set("public", "resetRegressor", function(data = "tbl_df"){
     dplyr::select_if(is.numeric) %>%
     colnames()
   private$.intercept <- self$resetMatrix(value = 0)
-  private$.slope <- self$resetMatrix(value = 1)
-  private$.pValue <- self$resetMatrix(value = 1)
-  self$createRegressionMatrix(data)
+  private$.pIntercept <- self$resetMatrix(value = 1)
+  private$.slope <- self$resetMatrix(value = 0)
+  private$.pSlope <- self$resetMatrix(value = 1)
+  if(self$robust){
+    self$createRobustRegressionMatrix(data)
+  }
+  else{
+    self$createRegressionMatrix(data)
+  }
 })
 
 pgu.regressor$set("public", "resetDiagonal", function(data = "matrix"){
@@ -153,20 +174,61 @@ pgu.regressor$set("public", "createModel", function(data = "tbl_df"){
   }
 })
 
+
 pgu.regressor$set("public", "createRegressionMatrix", function(data = "tbl_df"){
-  #n = length(self$featureNames)
   for (abs in self$featureNames){
     for (ord in self$featureNames){
-      # if((abs != ord) & (obj$featureIsValid(feature = abs)) & (obj$featureIsValid(feature = ord))){
+      private$.abscissa <- abs
+      private$.ordinate <- ord
       if(abs != ord){
-        private$.abscissa <- abs
-        private$.ordinate <- ord
         self$createModel(data)
         private$.intercept[ord, abs] <- as.numeric(c(summary(self$model)$coefficients[1,1]))
+        private$.pIntercept[ord, abs] <-as.numeric(c(summary(self$model)$coefficients[1,4]))
         private$.slope[ord, abs] <- as.numeric(c(summary(self$model)$coefficients[2,1]))
-        private$.pValue[ord, abs] <-as.numeric(c(summary(self$model)$coefficients[2,4]))
+        private$.pSlope[ord, abs] <-as.numeric(c(summary(self$model)$coefficients[2,4]))
       }
     }
+  }
+})
+
+
+####################################
+# robust libear regression functions
+####################################
+pgu.regressor$set("public", "createRobustModel", function(data = "tbl_df"){
+  if(self$abscissa != self$ordinate){
+    private$.model <- paste(self$ordinate, self$abscissa, sep = "~") %>%
+      stats::as.formula() %>%
+      robust::lmRob(data, na.action = na.omit)
+  }
+})
+
+
+pgu.regressor$set("public", "createRobustRegressionMatrix", function(data = "tbl_df"){
+  for (abs in self$featureNames){
+    for (ord in self$featureNames){
+      private$.abscissa <- abs
+      private$.ordinate <- ord
+      if(abs != ord){
+        self$createRobustModel(data)
+        private$.intercept[ord, abs] <- as.numeric(c(summary(self$model)$coefficients[1,1]))
+        private$.pIntercept[ord, abs] <-as.numeric(c(summary(self$model)$coefficients[1,4]))
+        private$.slope[ord, abs] <- as.numeric(c(summary(self$model)$coefficients[2,1]))
+        private$.pSlope[ord, abs] <-as.numeric(c(summary(self$model)$coefficients[2,4]))
+      }
+    }
+  }
+})
+
+######################
+# single feature Model
+######################
+pgu.regressor$set("public", "createFeatureModel", function(data = "tbl_df"){
+  if(self$robust){
+    self$createRobustModel(data)
+  }
+  else{
+    self$createModel(data)
   }
 })
 
@@ -175,11 +237,12 @@ pgu.regressor$set("public", "createRegressionMatrix", function(data = "tbl_df"){
 #################
 pgu.regressor$set("public","printModel", function(){
   df <- data.frame(
-    abscissa = as.character(c(names(self$model$model)[2])),
-    ordinate = as.character(c(names(self$model$model)[1])),
-    intercept = as.numeric(c(summary(self$model)$coefficients[1,1])),
-    slope = as.numeric(c(summary(self$model)$coefficients[2,1])),
-    p.regression = as.numeric(c(summary(self$model)$coefficients[2,4])))%>%
+    abscissa = self$abscissa,
+    ordinate = self$ordinate,
+    intercept = self$intercept[self$ordinate, self$abscissa],
+    p.Intercept = self$pIntercept[self$ordinate, self$abscissa],
+    slope = self$slope[self$ordinate, self$abscissa],
+    p.Slope = self$pSlope[self$ordinate, self$abscissa])%>%
     t() %>%
     as.data.frame() %>%
     tibble::rownames_to_column("regression parameter") %>%
