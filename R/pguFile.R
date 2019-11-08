@@ -11,10 +11,8 @@ pgu.file <- R6::R6Class("pgu.file",
                           .baseName = "character",
                           .folderName = "character",
                           .suffix = "character",
-                          #.suffixList = "character",
-                          .content = "character",
-                          #.contentList = "character",
-                          #.outFileName = "character",
+                          .exportType = "character",
+                          .timeString = "character",
                           .sheetIndex = "numeric",
                           .separator = "character",
                           .skipRows = "numeric",
@@ -55,11 +53,14 @@ pgu.file <- R6::R6Class("pgu.file",
                           setSuffix = function(val = "character"){
                             private$.suffix <- val
                           },
-                          content = function(){
-                            return(private$.content)
+                          exportType = function(){
+                            return(private$.exportType)
                           },
-                          setContent = function(val = "character"){
-                            private$.content <- val
+                          setExportType = function(val = "character"){
+                            private$.exportType <- val
+                          },
+                          timeString = function(){
+                            return(private$.timeString)
                           },
                           sheetIndex = function(){
                             return(private$.sheetIndex)
@@ -102,12 +103,13 @@ pgu.file <- R6::R6Class("pgu.file",
                             private$.baseName <- character(length(0))
                             private$.folderName <- character(length(0))
                             private$.suffix <- character(length(0))
-                            private$.content <- character(length(0))
+                            private$.exportType <- character(length(0))
                             private$.sheetIndex <- 0
                             private$.separator <- character(length(0))
                             private$.skipRows <- 0
                             private$.header = FALSE
-                            private$.naChar <- character(length(0))
+                            private$.naChar <- "NA"
+                            self$updateTimeString()
                           },
                           finalize = function(){
                             print("Instance of pgu.fileDesign removed from heap")
@@ -116,20 +118,23 @@ pgu.file <- R6::R6Class("pgu.file",
                           # print instance variables
                           ##########################
                           print = function(){
-                            rString <- sprintf("\npgu.file\nuploadFileName: %s\nfileName: %s\nbaseName: %s\nfolderName: %s\nsuffix: %s\ncontent: %s\nsheetIndex: %i\nseparator: %s\nskipRows: %i\nheader: %s\nnchar: %s\n\n",
+                            rString <- sprintf("\npgu.file\n")
+                            cat(rString)
+                            fString <- sprintf("uploadFileName: %s\nfileName: %s\nbaseName: %s\nsuffix: %s\nexportType: %s\ntimeString: %s\nsheetIndex: %i\nseparator: %s\nskipRows: %i\nheader: %s\nnaChar: %s\n",
                                                self$uploadFileName,
                                                self$fileName,
                                                self$baseName,
-                                               self$folderName,
                                                self$suffix,
-                                               self$content,
+                                               self$exportType,
+                                               self$timeString,
                                                self$sheetIndex,
                                                self$separator,
                                                self$skipRows,
                                                self$header,
                                                self$naChar
                             )
-                            cat(rString)
+                            cat(fString)
+                            cat("\n\n")
                             invisible(self)
                           }
                         )
@@ -141,4 +146,26 @@ pgu.file$set("public", "splitFileName", function(){
   self$setBaseName <- tools::file_path_sans_ext(basename(self$fileName))
   self$setFolderName <- dirname(self$fileName)
   self$setSuffix <- tools::file_ext(self$fileName)
+})
+
+pgu.file$set("public", "updateTimeString", function(){
+  private$.timeString <- Sys.time() %>%
+    format("%y%m%d-%H%M%S")
+})
+
+pgu.file$set("public", "mergeFileName", function(){
+  private$.fileName <- sprintf("%s_%s_%s.%s",
+                                  self$baseName,
+                                  self$exportType,
+                                  self$timeString,
+                                  self$suffix)
+})
+
+pgu.file$set("public", "bluntFileName", function(value = "character"){
+  self$updateTimeString()
+  sprintf("%s_%s_%s",
+          self$baseName,
+          value,
+          self$timeString) %>%
+    return()
 })

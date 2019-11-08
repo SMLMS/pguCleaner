@@ -110,7 +110,7 @@ pgu.correlator <- R6::R6Class("pgu.correlator",
 ####################
 # public functions
 ####################
-pgu.correlator$set("public", "resetCorrelator", function(data = "tbl_df"){
+pgu.correlator$set("public", "resetCorrelator", function(data = "tbl_df", progress = "Progress"){
   private$.featureNames <- data %>%
     dplyr::select_if(is.numeric) %>%
     colnames()
@@ -121,7 +121,7 @@ pgu.correlator$set("public", "resetCorrelator", function(data = "tbl_df"){
   private$.pKendall <- self$resetMatrix(value = 1)
   private$.rho <- self$resetMatrix(value = 0)
   private$.pSpearman <- self$resetMatrix(value = 1)
-  self$correlate(data)
+  self$correlate(data, progress)
 })
 
 pgu.correlator$set("public", "resetMatrix", function(value = "numeric"){
@@ -156,9 +156,12 @@ pgu.correlator$set("public", "calcCorrelationNumeric", function(abscissa = "nume
                                    method = method)
 })
 
-pgu.correlator$set("public", "createCorrelationMatrixPearson", function(data = "tbl_df"){
+pgu.correlator$set("public", "createCorrelationMatrixPearson", function(data = "tbl_df", progress = "Progress"){
   for (abs in self$featureNames){
     for (ord in self$featureNames){
+      if(("shiny" %in% (.packages())) & (class(progress)[1] == "Progress")){
+        progress$inc(1)
+      }
       self$calcCorrelationNumeric(abscissa = data %>%
                                     dplyr::pull(abs),
                                   ordinate = data %>%
@@ -170,9 +173,12 @@ pgu.correlator$set("public", "createCorrelationMatrixPearson", function(data = "
   }
 })
 
-pgu.correlator$set("public", "createCorrelationMatrixKendall", function(data = "tbl_df"){
+pgu.correlator$set("public", "createCorrelationMatrixKendall", function(data = "tbl_df", progress = "Progress"){
   for (abs in self$featureNames){
     for (ord in self$featureNames){
+      if(("shiny" %in% (.packages())) & (class(progress)[1] == "Progress")){
+        progress$inc(1)
+      }
       self$calcCorrelationNumeric(abscissa = data %>%
                                     dplyr::pull(abs),
                                   ordinate = data %>%
@@ -184,9 +190,12 @@ pgu.correlator$set("public", "createCorrelationMatrixKendall", function(data = "
   }
 })
 
-pgu.correlator$set("public", "createCorrelationMatrixSpearman", function(data = "tbl_df"){
+pgu.correlator$set("public", "createCorrelationMatrixSpearman", function(data = "tbl_df", progress = "Progress"){
   for (abs in self$featureNames){
     for (ord in self$featureNames){
+      if(("shiny" %in% (.packages())) & (class(progress)[1] == "Progress")){
+        progress$inc(1)
+      }
       self$calcCorrelationNumeric(abscissa = data %>%
                                     dplyr::pull(abs),
                                   ordinate = data %>%
@@ -198,10 +207,10 @@ pgu.correlator$set("public", "createCorrelationMatrixSpearman", function(data = 
   }
 })
 
-pgu.correlator$set("public", "correlate", function(data = "tbl_df"){
-  self$createCorrelationMatrixPearson(data)
-  self$createCorrelationMatrixKendall(data)
-  self$createCorrelationMatrixSpearman(data)
+pgu.correlator$set("public", "correlate", function(data = "tbl_df", progress = "Progress"){
+  self$createCorrelationMatrixPearson(data, progress)
+  self$createCorrelationMatrixKendall(data, progress)
+  self$createCorrelationMatrixSpearman(data, progress)
 })
 
 #################

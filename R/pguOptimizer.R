@@ -220,13 +220,11 @@ pgu.optimizer$set("public", "optimize", function(data  = "tbl_df", progress = "P
   if (self$mirror){
     mirrorLogic <- c(mirrorLogic, TRUE)
   }
-  i <- 0
   for (logic in mirrorLogic){
     transformator <- self$updateMirrorLogic(transformator, logic)
     for (type  in self$trafoAlphabet){
       if(("shiny" %in% (.packages())) & (class(progress)[1] == "Progress")){
-        progress$set(value = i)
-        i <- i+1
+        progress$inc(1)
       }
       transformator <- self$updateTrafoType(transformator, type)
       transformator$estimateTrafoParameter(data)

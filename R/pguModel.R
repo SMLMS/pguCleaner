@@ -138,11 +138,9 @@ pgu.model$set("public", "fitFeature", function(feature = "character"){
 })
 
 pgu.model$set("public", "fitData", function(progress = "Progress"){
-  i <- 1
   for (feature in self$modelParameter[["features"]]){
     if(("shiny" %in% (.packages())) & (class(progress)[1] == "Progress")){
-      progress$set(value = i)
-      i <- i+1
+      progress$inc(1)
     }
     idx <- self$featureIdx(feature)
     if(!is.na(idx)){

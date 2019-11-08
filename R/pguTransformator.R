@@ -10,8 +10,8 @@ pgu.transformator <- R6::R6Class("pgu.transformator",
                               ####################
                                private = list(
                                  .trafoAlphabet = "character",
-                                 .trafoParameter = "tbl_df",
-                                 .modelParameter = "tbl_df"
+                                 .trafoParameter = "tbl_df"
+                                 # .modelParameter = "tbl_df"
                                ),
                               ##################
                               # accessor methods
@@ -22,10 +22,10 @@ pgu.transformator <- R6::R6Class("pgu.transformator",
                                  },
                                  trafoParameter = function(){
                                    return(private$.trafoParameter)
-                                 },
-                                 modelParameter = function(){
-                                   return(private$.modelParameter)
                                  }
+                                 # modelParameter = function(){
+                                 #   return(private$.modelParameter)
+                                 # }
                                  ),
                               ###################
                               # memory management
@@ -52,8 +52,8 @@ pgu.transformator <- R6::R6Class("pgu.transformator",
                                    print(private$.trafoAlphabet)
                                    cat("\ntrafoParameter:\n")
                                    print(private$.trafoParameter)
-                                   cat("\nmodelParameter\n")
-                                   print(private$.modelParameter)
+                                   # cat("\nmodelParameter\n")
+                                   # print(private$.modelParameter)
                                    cat("\n\n")
                                    invisible(self)
                                  }

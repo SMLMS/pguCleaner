@@ -209,11 +209,9 @@ pgu.missings$set("public", "handleMissings", function(data = "tbl_df", progress 
 })
 
 pgu.missings$set("public", "cleanByMedian", function(data = "tbl_df", progress = "Progress"){
-  i <- 1
   for (feature in self$missingsParameter[["features"]]){
     if(("shiny" %in% (.packages())) & (class(progress)[1] == "Progress")){
-      progress$set(value = i)
-      i <- i+1
+      progress$inc(1)
     }
     indices <- self$missingsIdxByFeature(feature)
     data <- data %>%
@@ -225,11 +223,9 @@ pgu.missings$set("public", "cleanByMedian", function(data = "tbl_df", progress =
 })
 
 pgu.missings$set("public", "cleanByMean", function(data = "tbl_df", progress = "Progress"){
-  i <- 1
   for (feature in self$missingsParameter[["features"]]){
     if(("shiny" %in% (.packages())) & (class(progress)[1] == "Progress")){
-      progress$set(value = i)
-      i <- i+1
+      progress$inc(1)
     }
     indices <- self$missingsIdxByFeature(feature)
     data <- data %>%
@@ -241,11 +237,9 @@ pgu.missings$set("public", "cleanByMean", function(data = "tbl_df", progress = "
 })
 
 pgu.missings$set("public", "cleanByExpectationValue", function(data = "tbl_df", progress = "Progress"){
-  i <- 1
   for (feature in self$missingsParameter[["features"]]){
     if(("shiny" %in% (.packages())) & (class(progress)[1] == "Progress")){
-      progress$set(value = i)
-      i <- i+1
+      progress$inc(1)
     }
     indices <- self$missingsIdxByFeature(feature)
     data <- data %>%
@@ -257,11 +251,9 @@ pgu.missings$set("public", "cleanByExpectationValue", function(data = "tbl_df", 
 })
 
 pgu.missings$set("public", "cleanByMC", function(data = "tbl_df", progress = "Progress"){
-  i <- 1
   for (feature in self$missingsParameter[["features"]]){
     if(("shiny" %in% (.packages())) & (class(progress)[1] == "Progress")){
-      progress$set(value = i)
-      i <- i+1
+      progress$inc(1)
     }
     indices <- self$missingsIdxByFeature(feature)
     mcVal <- stats::rnorm(n = length(indices),
@@ -278,7 +270,7 @@ pgu.missings$set("public", "cleanByMC", function(data = "tbl_df", progress = "Pr
 
 pgu.missings$set("public", "cleanByKnn", function(data = "tbl_df", progress = "Progress"){
   if(("shiny" %in% (.packages())) & (class(progress)[1] == "Progress")){
-    progress$set(value = length(self$missingsParameter[["features"]]))
+    progress$inc(length(self$missingsParameter[["features"]]))
   }
   data %>%
     as.data.frame() %>%
@@ -293,7 +285,7 @@ pgu.missings$set("public", "cleanByKnn", function(data = "tbl_df", progress = "P
 
 pgu.missings$set("public", "cleanByPmm", function(data = "tbl_df", progress = "Progress"){
   if(("shiny" %in% (.packages())) & (class(progress)[1] == "Progress")){
-    progress$set(value = length(self$missingsParameter[["features"]]))
+    progress$inc(length(self$missingsParameter[["features"]]))
   }
   data %>%
     as.data.frame() %>%
@@ -308,7 +300,7 @@ pgu.missings$set("public", "cleanByPmm", function(data = "tbl_df", progress = "P
 
 pgu.missings$set("public", "cleanByCart", function(data = "tbl_df", progress = "Progress"){
   if(("shiny" %in% (.packages())) & (class(progress)[1] == "Progress")){
-    progress$set(value = length(self$missingsParameter[["features"]]))
+    progress$inc(length(self$missingsParameter[["features"]]))
   }
   data %>%
     as.data.frame() %>%
@@ -322,7 +314,7 @@ pgu.missings$set("public", "cleanByCart", function(data = "tbl_df", progress = "
 
 pgu.missings$set("public", "cleanByRf", function(data = "tbl_df", progress = "Progress"){
   if(("shiny" %in% (.packages())) & (class(progress)[1] == "Progress")){
-    progress$set(value = length(self$missingsParameter[["features"]]))
+    progress$inc(length(self$missingsParameter[["features"]]))
   }
   data %>%
     as.data.frame() %>%
@@ -336,7 +328,7 @@ pgu.missings$set("public", "cleanByRf", function(data = "tbl_df", progress = "Pr
 
 pgu.missings$set("public", "cleanByAmelia", function(data = "tbl_df", progress = "Progress"){
   if(("shiny" %in% (.packages())) & (class(progress)[1] == "Progress")){
-    progress$set(value = length(self$missingsParameter[["features"]]))
+    progress$inc(length(self$missingsParameter[["features"]]))
   }
   ameliaOutput <- data %>%
     Amelia::amelia(m = 1, parallel = "multicore", ncpus = 8)
@@ -347,7 +339,7 @@ pgu.missings$set("public", "cleanByAmelia", function(data = "tbl_df", progress =
 
 pgu.missings$set("public", "cleanByAmeliaBound", function(data = "tbl_df", progress = "Progress"){
   if(("shiny" %in% (.packages())) & (class(progress)[1] == "Progress")){
-    progress$set(value = length(self$missingsParameter[["features"]]))
+    progress$inc(length(self$missingsParameter[["features"]]))
   }
   tblBounds = data.frame(column=c(1:ncol(data)),
                          lower=c(0),

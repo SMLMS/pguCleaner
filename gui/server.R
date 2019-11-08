@@ -20,8 +20,7 @@ source(file = "../R/pguMissings.R", local=TRUE)
 source(file = "../R/pguOutliers.R", local=TRUE)
 source(file = "../R/pguCorrelator.R", local=TRUE)
 source(file = "../R/pguRegressor.R", local=TRUE)
-
-# source(file = "../R/pgu_exporter.R", local=TRUE)
+source(file = "../R/pguExporter.R", local=TRUE)
 # source(file = "../R/pgu_hdf5.R", local=TRUE)
 
 shinyServer(function(input, output, session) {
@@ -33,7 +32,7 @@ shinyServer(function(input, output, session) {
   modelDefined <- shiny::reactiveVal(value = FALSE)
   nanCleaned <- shiny::reactiveVal(value = FALSE)
   outlierDetected <- shiny::reactiveVal(value = FALSE)
-  
+  outlierRevised <- shiny::reactiveVal(value = FALSE)
   dataCorrelated <- shiny::reactiveVal(value = FALSE)
   ############
   # dataFrames
@@ -45,6 +44,7 @@ shinyServer(function(input, output, session) {
   cleanedData <- pgu.data$new()
   
   inFile <- pgu.file$new()
+  outFile <- pgu.file$new()
   importer <- pgu.importer$new()
   filterSet <- pgu.filter$new()
   plt <- pgu.plot$new()
@@ -56,6 +56,7 @@ shinyServer(function(input, output, session) {
   outliers <- pgu.outliers$new()
   correlator <- pgu.correlator$new()
   regressor <- pgu.regressor$new()
+  exporter <- pgu.exporter$new()
   
   
   ###############
@@ -71,6 +72,7 @@ shinyServer(function(input, output, session) {
       inFile$setSkipRows <- input$ni.skipRows
       inFile$setSeparator <-input$rb.separator
       inFile$setHeader <- input$cb.header
+      outFile$setBaseName <- inFile$baseName
     }
     else{
       dataLoaded(FALSE)
@@ -358,19 +360,35 @@ shinyServer(function(input, output, session) {
       
       output$tbl.optimizedTypes <- DT::renderDataTable(
         optimizer$optTypes %>%
-          DT::datatable(options = list(
-            scrollX = TRUE,
-            scrollY = '350px',
-            paging = FALSE
-          ))
+          DT::datatable(
+            extensions = "Buttons",
+            options = list(
+              scrollX = TRUE,
+              scrollY = '350px',
+              paging = FALSE,
+              dom = "Blfrtip",
+              buttons = list(list(
+                extend = 'csv',
+                filename = outFile$bluntFileName("optTrafoTypes"),
+                text = "Download"
+              ))
+            ))
       )
       output$tbl.optimizedValues <- DT::renderDataTable(
         optimizer$optParameter %>%
-          DT::datatable(options = list(
-            scrollX = TRUE,
-            scrollY = '350px',
-            paging = FALSE
-          ))
+          DT::datatable(
+            extensions = "Buttons",
+            options = list(
+              scrollX = TRUE,
+              scrollY = '350px',
+              paging = FALSE,
+              dom = "Blfrtip",
+              buttons = list(list(
+                extend = 'csv',
+                filename = outFile$bluntFileName("optTrafoParameter"),
+                text = "Download"
+              ))
+            ))
       )
     }
   })
@@ -531,25 +549,59 @@ shinyServer(function(input, output, session) {
       
       output$tbl.transformationParameter <- DT::renderDataTable(transformator$trafoParameter %>%
                                                                   format.data.frame(scientific = TRUE, digits = 4),
-                                                                options = list(scrollX = TRUE, scrollY='350px', paging=FALSE))
+                                                                extensions = "Buttons",
+                                                                options = list(
+                                                                  scrollX = TRUE,
+                                                                  scrollY='350px',
+                                                                  paging=FALSE,
+                                                                  dom = "Blfrtip",
+                                                                  buttons = list(list(
+                                                                    extend = 'csv',
+                                                                    filename = outFile$bluntFileName("trafoPara"),
+                                                                    text = "Download"
+                                                                  ))))
 
       output$tbl.modelParameter <- DT::renderDataTable(model$modelParameterData() %>%
                                                          format.data.frame(scientific = TRUE, digits = 4),
-                                                       options = list(scrollX = TRUE,
-                                                                      scrollY = '350px',
-                                                                      paging = FALSE))
+                                                       extensions = "Buttons",
+                                                       options = list(
+                                                         scrollX = TRUE,
+                                                         scrollY = '350px',
+                                                         paging = FALSE,
+                                                         dom = "Blfrtip",
+                                                         buttons = list(list(
+                                                           extend = 'csv',
+                                                           filename = outFile$bluntFileName("modelPara"),
+                                                           text = "Download"
+                                                         ))))
       
       output$tbl.modelQuality <- DT::renderDataTable(model$modelQualityData() %>%
                                                        format.data.frame(scientific = TRUE, digits = 4),
-                                                     options = list(scrollX = TRUE,
-                                                                    scrollY = '350px',
-                                                                    paging = FALSE))
+                                                     extensions = "Buttons",
+                                                     options = list(
+                                                       scrollX = TRUE,
+                                                       scrollY = '350px',
+                                                       paging = FALSE,
+                                                       dom = "Blfrtip",
+                                                       buttons = list(list(
+                                                         extend = 'csv',
+                                                         filename = outFile$bluntFileName("modelQuality"),
+                                                         text = "Download"
+                                                       ))))
       
       output$tbl.testResults <- DT::renderDataTable(model$testResultData() %>%
                                                       format.data.frame(scientific = TRUE, digits = 4),
-                                                    options = list(scrollX = TRUE,
-                                                                   scrollY = '350px',
-                                                                   paging = FALSE))
+                                                    extensions = "Buttons",
+                                                    options = list(
+                                                      scrollX = TRUE,
+                                                      scrollY = '350px',
+                                                      paging = FALSE,
+                                                      dom = "Blfrtip",
+                                                      buttons = list(list(
+                                                        extend = 'csv',
+                                                        filename = outFile$bluntFileName("modelTests"),
+                                                        text = "Download"
+                                                      ))))
     }
   })
   
@@ -561,6 +613,7 @@ shinyServer(function(input, output, session) {
     if(dataLoaded()){
       nanCleaned(FALSE)
       outlierDetected(FALSE)
+      outlierRevised(FALSE)
       progress <- shiny::Progress$new(session, min = 1, max = length(filteredData$numericFeatureNames))
       progress$set(message = "Fitting model parameters", value = 1)
       on.exit(progress$close())
@@ -610,25 +663,59 @@ shinyServer(function(input, output, session) {
       
       output$tbl.transformationParameter <- DT::renderDataTable(transformator$trafoParameter %>%
                                                                   format.data.frame(scientific = TRUE, digits = 4),
-                                                                options = list(scrollX = TRUE, scrollY='350px', paging=FALSE))
+                                                                extensions = "Buttons",
+                                                                options = list(
+                                                                  scrollX = TRUE,
+                                                                  scrollY='350px',
+                                                                  paging=FALSE,
+                                                                  dom = "Blfrtip",
+                                                                  buttons = list(list(
+                                                                    extend = 'csv',
+                                                                    filename = outFile$bluntFileName("trafoPara"),
+                                                                    text = "Download"
+                                                                  ))))
       
       output$tbl.modelParameter <- DT::renderDataTable(model$modelParameterData() %>%
                                                          format.data.frame(scientific = TRUE, digits = 4),
-                                                       options = list(scrollX = TRUE,
-                                                                      scrollY = '350px',
-                                                                      paging = FALSE))
+                                                       extensions = "Buttons",
+                                                       options = list(
+                                                         scrollX = TRUE,
+                                                         scrollY = '350px',
+                                                         paging = FALSE,
+                                                         dom = "Blfrtip",
+                                                         buttons = list(list(
+                                                           extend = 'csv',
+                                                           filename = outFile$bluntFileName("modelPara"),
+                                                           text = "Download"
+                                                         ))))
       
       output$tbl.modelQuality <- DT::renderDataTable(model$modelQualityData() %>%
                                                        format.data.frame(scientific = TRUE, digits = 4),
-                                                     options = list(scrollX = TRUE,
-                                                                    scrollY = '350px',
-                                                                    paging = FALSE))
+                                                     extensions = "Buttons",
+                                                     options = list(
+                                                       scrollX = TRUE,
+                                                       scrollY = '350px',
+                                                       paging = FALSE,
+                                                       dom = "Blfrtip",
+                                                       buttons = list(list(
+                                                         extend = 'csv',
+                                                         filename = outFile$bluntFileName("modelQuality"),
+                                                         text = "Download"
+                                                       ))))
       
       output$tbl.testResults <- DT::renderDataTable(model$testResultData() %>%
                                                       format.data.frame(scientific = TRUE, digits = 4),
-                                                    options = list(scrollX = TRUE,
-                                                                   scrollY = '350px',
-                                                                   paging = FALSE))
+                                                    extensions = "Buttons",
+                                                    options = list(
+                                                      scrollX = TRUE,
+                                                      scrollY = '350px',
+                                                      paging = FALSE,
+                                                      dom = "Blfrtip",
+                                                      buttons = list(list(
+                                                        extend = 'csv',
+                                                        filename = outFile$bluntFileName("modelTests"),
+                                                        text = "Download"
+                                                      ))))
     }
   })
 
@@ -651,18 +738,32 @@ shinyServer(function(input, output, session) {
   shiny::observeEvent(input$si.nanSummary,{
     if(modelDefined()){
       switch (input$si.nanSummary,
-              "Statistics" = output$tbl.nanSummary <- DT::renderDataTable(missings$nanDistribution(data = scaledData$rawData)%>%
-                                                                            DT::datatable(options = list(
+              "Statistics" = output$tbl.nanSummary <- DT::renderDataTable(missings$nanDistribution(data = filteredData$rawData)%>%
+                                                                            DT::datatable(
+                                                                              extensions = "Buttons",
+                                                                              options = list(
                                                                               scrollX = TRUE,
                                                                               scrollY = '350px',
-                                                                              paging = FALSE
+                                                                              paging = FALSE,
+                                                                              dom = "Blfrtip",
+                                                                              buttons = list(list(
+                                                                                extend = 'csv',
+                                                                                filename = outFile$bluntFileName("nanSummary"),
+                                                                                text = "Download"))
                                                                             ))),
-              "Details" = output$tbl.nanSummary <- DT::renderDataTable(missings$nanPositives(data = scaledData$rawData)%>%
+              "Details" = output$tbl.nanSummary <- DT::renderDataTable(missings$nanPositives(data = filteredData$rawData)%>%
                                                                          format.data.frame(scientific = TRUE, digits = 4) %>%
-                                                                         DT::datatable(options = list(
+                                                                         DT::datatable(
+                                                                           extensions = "Buttons",
+                                                                           options = list(
                                                                            scrollX = TRUE,
                                                                            scrollY = '350px',
-                                                                           paging = FALSE
+                                                                           paging = FALSE,
+                                                                           dom = "Blfrtip",
+                                                                           buttons = list(list(
+                                                                             extend = 'csv',
+                                                                             filename = outFile$bluntFileName("nanDetails"),
+                                                                             text = "Download"))
                                                                          )))
       )
     }
@@ -735,19 +836,50 @@ shinyServer(function(input, output, session) {
   #################
   shiny::observeEvent(input$ab.detectOutliers,{
     if(modelDefined()){
+      progress <- shiny::Progress$new(session, min = 1, max = length(scaledData$numericFeatureNames))
+      progress$set(message = "Detecting Outliers", value = 1)
+      on.exit(progress$close())
+      
       scaledData$rawData %>%
-        outliers$resetOutliersParameter()
+        outliers$resetOutliersParameter(progress = progress)
       
       switch (input$si.outSummary,
               "Statistics" = output$tbl.outSummary <- DT::renderDataTable(outliers$outliersStatistics %>%
-                                                                            format.data.frame(scientific = FALSE, digits = 3) %>%
-                                                                            DT::datatable(options = list(
+                                                                            format.data.frame(scientific = FALSE, digits = 4) %>%
+                                                                            DT::datatable(
+                                                                              extensions = "Buttons",
+                                                                              options = list(
                                                                               scrollX = TRUE,
                                                                               scrollY = '350px',
-                                                                              paging = FALSE
+                                                                              paging = FALSE,
+                                                                              dom = "Blfrtip",
+                                                                              buttons = list(list(
+                                                                                extend = 'csv',
+                                                                                filename = outFile$bluntFileName("outlierSummary"),
+                                                                                text = "Download"))
                                                                             ))),
-              "Outliers" = output$tbl.outSummary <- DT::renderDataTable(outliers$outlierTable(data = filteredData$rawData)),
-              "Data" = output$tbl.outSummary <- DT::renderDataTable(outliers$DataTable(data = filteredData$rawData))
+              "Outliers" = output$tbl.outSummary <- DT::renderDataTable(outliers$outlierTable(data = filteredData$rawData) %>%
+                                                                          format.data.frame(scientific = TRUE, digits = 4) %>%
+                                                                          DT::datatable(
+                                                                            extensions = "Buttons",
+                                                                            options = list(
+                                                                              scrollX = TRUE,
+                                                                              scrollY = '350px',
+                                                                              paging = FALSE,
+                                                                              dom = "Blfrtip",
+                                                                              buttons = list(list(
+                                                                                extend = 'csv',
+                                                                                filename = outFile$bluntFileName("outlierSummary"),
+                                                                                text = "Download"))
+                                                                          ))),
+              "Data" = output$tbl.outSummary <- DT::renderDataTable(outliers$DataTable(data = filteredData$rawData) %>%
+                                                                      format.data.frame(scientific = TRUE, digits = 4) %>%
+                                                                      DT::datatable(
+                                                                        options = list(
+                                                                          scrollX = TRUE,
+                                                                          scrollY = '350px',
+                                                                          paging = FALSE
+                                                                        )))
       )
       output$plt.outSummary <- shiny::renderPlot(outliers$plotOutliersDistribution())
       outlierDetected(TRUE)
@@ -762,18 +894,20 @@ shinyServer(function(input, output, session) {
       errorMessage <- sprintf("No outliers detected.", inFile$suffix)
       shiny::showNotification(paste(errorMessage),type = "error", duration = 10)
     }
-    # else if (!nanCleaned()){
-    #   errorMessage <- sprintf("No outliers detected.", inFile$suffix)
-    #   shiny::showNotification(paste(errorMessage),type = "error", duration = 10)
-    # }
     else{
+      progress <- shiny::Progress$new(session, min = 1, max = length(scaledData$numericFeatureNames)*2)
+      progress$set(message = "Handle Outliers", value = 1)
+      on.exit(progress$close())
+      
       outliers$setCleaningAgent <- input$si.outHandleMethod
       outliers$setSeed <- input$ni.outSeed
       cleanedData$setRawData <- scaledData$rawData %>%
-        missings$handleMissings() %>%
-        outliers$handleOutliers() %>%
+        missings$handleMissings(progress = progress) %>%
+        outliers$handleOutliers(progress = progress) %>%
         model$rescaleData() %>%
         transformator$reverseMutateData()
+      
+      outlierRevised(TRUE)
       
       output$tbl.outCleaningSummary <- DT::renderDataTable(cleanedData$rawData %>%
                                                              dplyr::select(input$si.outHandleFeature) %>%
@@ -784,6 +918,32 @@ shinyServer(function(input, output, session) {
                                                                scrollY = '350px',
                                                                paging = FALSE)))
       output$plt.outCleaningSummary <- shiny::renderPlot(outliers$featurePlot(data = cleanedData$rawData, feature = input$si.outHandleFeature))
+      
+      shiny::updateSelectInput(session, "si.outHandleFeature",
+                               choices = cleanedData$numericFeatureNames,
+                               selected = cleanedData$numericFeatureNames[1])
+    }
+  })
+  
+  #################################
+  # update outlier revision results
+  #################################
+  shiny::observeEvent(input$si.outHandleFeature,{
+    if(outlierRevised()){
+      output$tbl.outCleaningSummary <- DT::renderDataTable(cleanedData$rawData %>%
+                                                             dplyr::select(input$si.outHandleFeature) %>%
+                                                             dplyr::slice(outlierss$outlierssIdxByFeature(feature = input$si.outHandleFeature)) %>%
+                                                             format.data.frame(scientific = TRUE, digits = 4) %>%
+                                                             DT::datatable(options = list(
+                                                               scrollX = TRUE,
+                                                               scrollY = '350px',
+                                                               paging = FALSE)))
+      
+      output$plt.outCleaningSummary <- shiny::renderPlot(outliers$featurePlot(data = cleanedData$rawData, feature = input$si.outHandleFeature))
+    }
+    else{
+      output$tbl.outCleaningSummary <- DT::renderDataTable(NULL)
+      output$plt.outCleaningSummary <- shiny::renderPlot(NULL)
     }
   })
   
@@ -795,13 +955,41 @@ shinyServer(function(input, output, session) {
       switch (input$si.outSummary,
               "Statistics" = output$tbl.outSummary <- DT::renderDataTable(outliers$outliersStatistics %>%
                                                                             format.data.frame(scientific = FALSE, digits = 3) %>%
-                                                                            DT::datatable(options = list(
+                                                                            DT::datatable(
+                                                                              extensions = "Buttons",
+                                                                              options = list(
                                                                               scrollX = TRUE,
                                                                               scrollY = '350px',
-                                                                              paging = FALSE
+                                                                              paging = FALSE,
+                                                                              dom = "Blfrtip",
+                                                                              buttons = list(list(
+                                                                                extend = 'csv',
+                                                                                filename = outFile$bluntFileName("outlierSummary"),
+                                                                                text = "Download"))
                                                                             ))),
-              "Outliers" = output$tbl.outSummary <- DT::renderDataTable(outliers$outlierTable(data = filteredData$rawData)),
-              "Data" = output$tbl.outSummary <- DT::renderDataTable(outliers$DataTable(data = filteredData$rawData))
+              "Outliers" = output$tbl.outSummary <- DT::renderDataTable(outliers$outlierTable(data = filteredData$rawData) %>%
+                                                                          DT::datatable(
+                                                                            extensions = "Buttons",
+                                                                            options = list(
+                                                                              scrollX = TRUE,
+                                                                              scrollY = '350px',
+                                                                              paging = FALSE,
+                                                                              dom = "Blfrtip",
+                                                                              buttons = list(list(
+                                                                                extend = 'csv',
+                                                                                filename = outFile$bluntFileName("outlierDetails"),
+                                                                                text = "Download"))
+                                                                            )
+                                                                          )),
+              "Data" = output$tbl.outSummary <- DT::renderDataTable(outliers$DataTable(data = filteredData$rawData) %>%
+                                                                      format.data.frame(scientific = TRUE, digits = 3) %>%
+                                                                      DT::datatable(
+                                                                        options = list(
+                                                                          scrollX = TRUE,
+                                                                          scrollY = '350px',
+                                                                          paging = FALSE
+                                                                        )
+                                                                      ))
       )
     }
   })
@@ -813,13 +1001,12 @@ shinyServer(function(input, output, session) {
                                                              dplyr::slice(outliers$outliersIdxByFeature(feature = input$si.outHandleFeature)) %>%
                                                              format.data.frame(scientific = TRUE, digits = 4) %>%
                                                              DT::datatable(
-                                                               extensions = 'Buttons',
                                                                options = list(
-                                                              dom = "Blfrtip",
-                                                               scrollX = TRUE,
-                                                               scrollY = '350px',
-                                                               paging = FALSE,
-                                                               buttons = c('csv'))))
+                                                                 scrollX = TRUE,
+                                                                 scrollY = '350px',
+                                                                 paging = FALSE
+                                                               )))
+      
       
       output$plt.outCleaningSummary <- shiny::renderPlot(outliers$featurePlot(data = cleanedData$rawData, feature = input$si.outHandleFeature))
     }
@@ -839,99 +1026,144 @@ shinyServer(function(input, output, session) {
                                selected = filteredData$numericFeatureNames [! filteredData$numericFeatureNames %in% input$si.regressionAbs][1])
       shiny::updateSelectInput(session, "si.regressionStats",
                                selected = "Intercept")
-      shiny::updateCheckboxInput(session, "cb.robustRegression",
-                                 value = regressor$robust)
       shiny::updateSelectInput(session, "si.regressionStats",
                                selected = "Intercept")
     }
   })
   
   shiny::observeEvent(input$ab.regression,{
-    regressor$setRobust <- input$cb.robustRegression
-    regressor$resetRegressor(data = cleanedData$rawData)
-    correlator$resetCorrelator(data = cleanedData$rawData)
+    if (outlierRevised()){
+      progress <- shiny::Progress$new(session, min = 1, max = length(scaledData$numericFeatureNames)*length(scaledData$numericFeatureNames)*4)
+      progress$set(message = "Calculate Regression", value = 1)
+      on.exit(progress$close())
+      regressor$resetRegressor(data = cleanedData$rawData, progress = progress)
+      correlator$resetCorrelator(data = cleanedData$rawData, progress = progress)
+      
+      shiny::updateSelectInput(
+        session,
+        "si.regressionAbs",
+        choices = filteredData$numericFeatureNames,
+        selected = filteredData$numericFeatureNames[1]
+      )
+      shiny::updateSelectInput(
+        session,
+        "si.regressionOrd",
+        choices = filteredData$numericFeatureNames [!filteredData$numericFeatureNames %in% input$si.regressionAbs],
+        selected = filteredData$numericFeatureNames [!filteredData$numericFeatureNames %in% input$si.regressionAbs][1]
+      )
+      dataCorrelated(TRUE)
+      
+      shiny::updateSelectInput(session, "si.regressionStats",
+                               selected = "Intercept")
 
-    shiny::updateSelectInput(session, "si.regressionAbs",
-                             choices = filteredData$numericFeatureNames,
-                             selected = filteredData$numericFeatureNames[1])
-    shiny::updateSelectInput(session, "si.regressionOrd",
-                             choices = filteredData$numericFeatureNames [! filteredData$numericFeatureNames %in% input$si.regressionAbs],
-                             selected = filteredData$numericFeatureNames [! filteredData$numericFeatureNames %in% input$si.regressionAbs][1])
-    dataCorrelated(TRUE)
-    
-    regressor$setAbscissa <- filteredData$numericFeatureNames[1]
-    regressor$setOrdinate <- filteredData$numericFeatureNames [! filteredData$numericFeatureNames %in% input$si.regressionAbs][1]
-    
-    regressor$createFeatureModel(data = cleanedData$rawData)
-    
-    output$plt.regressionFeature <- shiny::renderPlot(
-      regressor$plotResult()
-    )
-    
-    output$tbl.regressionFeature <- DT::renderDataTable({
-      regressor$printModel() %>%
-        format.data.frame(scientific = TRUE, digits = 4) %>%
-        DT::datatable(
-          extensions = 'Buttons',
-          options = list(
-            dom = "Blfrtip",
-            scrollX = TRUE,
-            scrollY = TRUE,
-            paging = FALSE,
-            buttons = c('csv')
+      output$tbl.regressionMatrix <- DT::renderDataTable(
+        regressor$printInterceptTbl() %>%
+          format.data.frame(scientific = TRUE, digits = 4) %>%
+          DT::datatable(
+            extensions = 'Buttons',
+            options = list(
+              dom = "Blfrtip",
+              scrollX = TRUE,
+              scrollY = '350px',
+              paging = FALSE,
+              buttons = c('csv')
+            )
           )
-        )})
-    
-    correlator$setAbscissa <- input$si.regressionAbs
-    correlator$setOrdinate <- input$si.regressionOrd
-    
-    output$tbl.correlationFeature <- DT::renderDataTable(
-      correlator$printFeature() %>%
-        format.data.frame(scientific = TRUE, digits = 4) %>%
-        DT::datatable(
-          extensions = 'Buttons',
-          options = list(
-            dom = "Blfrtip",
-            scrollX = TRUE,
-            scrollY = TRUE,
-            paging = FALSE,
-            buttons = c('csv')
-          )
-        ))
-    
-    shiny::updateSelectInput(session, "si.regressionStats",
-                             selected = "Intercept")
-    
-    output$tbl.regressionMatrix <- DT::renderDataTable(
-      regressor$printInterceptTbl() %>%
-        format.data.frame(scientific = TRUE, digits = 4) %>%
-        DT::datatable(
-          extensions = 'Buttons',
-          options = list(
-            dom = "Blfrtip",
-            scrollX = TRUE,
-            scrollY = '350px',
-            paging = FALSE,
-            buttons = c('csv')
-          )))
+      )
+    }
     
   })
   
   shiny::observeEvent(input$si.regressionAbs,{
     if(dataCorrelated()){
-      shiny::updateCheckboxInput(session, "cb.robustRegression",
-                                 value = regressor$robust)
-
       shiny::updateSelectInput(session, "si.regressionOrd",
                                choices = filteredData$numericFeatureNames [! filteredData$numericFeatureNames %in% input$si.regressionAbs],
                                selected = filteredData$numericFeatureNames [! filteredData$numericFeatureNames %in% input$si.regressionAbs][1])
+
+      regressor$setAbscissa <- input$si.regressionAbs
+      regressor$setOrdinate <- input$si.regressionOrd
+      
+      regressor$createFeatureModel(data = cleanedData$rawData)
+      
+      output$plt.regressionFeature <-
+        shiny::renderPlot(regressor$plotResult())
+      
+      output$tbl.regressionFeature <- DT::renderDataTable({
+        regressor$printModel() %>%
+          format.data.frame(scientific = TRUE, digits = 4) %>%
+          DT::datatable(
+            extensions = 'Buttons',
+            options = list(
+              dom = "Blfrtip",
+              scrollX = TRUE,
+              scrollY = TRUE,
+              paging = FALSE,
+              buttons = c('csv')
+            )
+          )
+      })
+      
+      correlator$setAbscissa <- input$si.regressionAbs
+      correlator$setOrdinate <- input$si.regressionOrd
+      
+      output$tbl.correlationFeature <- DT::renderDataTable(
+        correlator$printFeature() %>%
+          format.data.frame(scientific = TRUE, digits = 4) %>%
+          DT::datatable(
+            extensions = 'Buttons',
+            options = list(
+              dom = "Blfrtip",
+              scrollX = TRUE,
+              scrollY = TRUE,
+              paging = FALSE,
+              buttons = c('csv')
+            )
+          )
+      )
     }
   })
   
   shiny::observeEvent(input$si.regressionOrd,{
     if(dataCorrelated()){
-      shiny::updateCheckboxInput(session, "cb.robustRegression",
-                                 value = regressor$robust)
+      regressor$setAbscissa <- input$si.regressionAbs
+      regressor$setOrdinate <- input$si.regressionOrd
+      
+      regressor$createFeatureModel(data = cleanedData$rawData)
+      
+      output$plt.regressionFeature <-
+        shiny::renderPlot(regressor$plotResult())
+      
+      output$tbl.regressionFeature <- DT::renderDataTable({
+        regressor$printModel() %>%
+          format.data.frame(scientific = TRUE, digits = 4) %>%
+          DT::datatable(
+            extensions = 'Buttons',
+            options = list(
+              dom = "Blfrtip",
+              scrollX = TRUE,
+              scrollY = TRUE,
+              paging = FALSE,
+              buttons = c('csv')
+            )
+          )
+      })
+      
+      correlator$setAbscissa <- input$si.regressionAbs
+      correlator$setOrdinate <- input$si.regressionOrd
+      
+      output$tbl.correlationFeature <- DT::renderDataTable(
+        correlator$printFeature() %>%
+          format.data.frame(scientific = TRUE, digits = 4) %>%
+          DT::datatable(
+            extensions = 'Buttons',
+            options = list(
+              dom = "Blfrtip",
+              scrollX = TRUE,
+              scrollY = TRUE,
+              paging = FALSE,
+              buttons = c('csv')
+            )
+          ))
     }
   })
   
@@ -984,8 +1216,9 @@ shinyServer(function(input, output, session) {
       output$tbl.regressionMatrix <- DT::renderDataTable(
         switch (input$si.regressionStats,
                 "Intercept" = regressor$printInterceptTbl(),
+                "p.Intercept" = regressor$printPInterceptTbl(),
                 "Slope" = regressor$printSlopeTbl(),
-                "p.regression" = regressor$printPValueTbl(),
+                "p.Slope" = regressor$printPSlopeTbl(),
                 "r" = correlator$printRTbl(),
                 "p.Pearson" = correlator$printPPearsonTbl(),
                 "tau" = correlator$printTauTbl(),
@@ -1004,6 +1237,56 @@ shinyServer(function(input, output, session) {
               buttons = c('csv'))))
     }
   })
+  
+  ####################
+  # export ui elements
+  ####################
+  shiny::observeEvent(input$si.exportType,{
+    if(grepl(input$si.exportType, "Complete")){
+      shiny::updateSelectInput(session, "si.suffix",
+                               choices = exporter$suffixAlphabet)
+    }
+    else{
+      shiny::updateSelectInput(session, "si.suffix",
+                               choices = exporter$reducedSuffixAlphabet)
+    }
+    outFile$setExportType <- input$si.exportType
+    outFile$updateTimeString()
+    outFile$mergeFileName()
+    exporter$setExportType <- input$si.exportType
+  })
+  
+  shiny::observeEvent(input$si.suffix,{
+    outFile$setSuffix <- input$si.suffix
+    outFile$updateTimeString()
+    outFile$mergeFileName()
+    exporter$setExportType <- input$si.exportType
+  })
+  
+  ########################
+  # export download button
+  ########################
+  output$db.export <- shiny::downloadHandler(
+    filename = function() {
+      outFile$fileName
+    },
+    content =  function(uploadFileName){
+      # update
+      exporter$setOutFileName <- uploadFileName
+      exporter$export(filteredObj = filteredData,
+                      transformedObj = transformedData,
+                      scaledObj = scaledData,
+                      revisedObj = cleanedData,
+                      transformatorObj = transformator,
+                      modelObj = model,
+                      naObj = missings,
+                      outlierObj = outliers,
+                      regressionObj = regressor,
+                      correlationObj = correlator,
+                      optimObj = optimizer)
+    }
+  )
+  
   
   ##############
   # observe Tabs
@@ -1030,13 +1313,22 @@ shinyServer(function(input, output, session) {
           DT::renderDataTable({
             filteredData$dataStatistics() %>%
               format.data.frame(scientific = TRUE, digits = 4) %>%
-              DT::datatable(options = list(
+              DT::datatable(
+                extensions = "Buttons",
+                options = list(
                 scrollX = TRUE,
                 scrollY = '350px',
-                paging = FALSE
-              ))
+                paging = FALSE,
+                dom = "Blfrtip",
+                buttons = list(list(
+                  extend = 'csv',
+                  filename = outFile$bluntFileName("Statistics"),
+                  text = "Download"
+                ))
+                ))
           })
       }
+      
       else{
         output$tbl.exploreStatistics <- DT::renderDataTable(NULL)
         output$plt.exploreGraphics <- shiny::renderPlot(NULL)
@@ -1049,25 +1341,7 @@ shinyServer(function(input, output, session) {
         errorMessage <- sprintf("No data loaded.", inFile$suffix)
         shiny::showNotification(paste(errorMessage),type = "error", duration = 10)
       }
-      if(modelOptimized()){
-        output$tbl.optimizedTypes <- DT::renderDataTable(
-          optimizer$optTypes %>%
-            DT::datatable(options = list(
-              scrollX = TRUE,
-              scrollY = '350px',
-              paging = FALSE
-            ))
-        )
-        output$tbl.optimizedValues <- DT::renderDataTable(
-          optimizer$optParameter %>%
-            DT::datatable(options = list(
-              scrollX = TRUE,
-              scrollY = '350px',
-              paging = FALSE
-            ))
-        )
-      }
-      else{
+      if(!modelOptimized()){
         output$tbl.optimizedTypes <- DT::renderDataTable(NULL)
         output$tbl.optimizedValues <- DT::renderDataTable(NULL)
       }
@@ -1146,18 +1420,31 @@ shinyServer(function(input, output, session) {
         
         output$plt.nanSummary <- shiny::renderPlot(missings$nanHeatMap())
         switch (input$si.nanSummary,
-                "Statistics" = output$tbl.nanSummary <- DT::renderDataTable(missings$nanDistribution(data = scaledData$rawData)%>%
-                                                                              DT::datatable(options = list(
+                "Statistics" = output$tbl.nanSummary <- DT::renderDataTable(missings$nanDistribution(data = filteredData$rawData)%>%
+                                                                              DT::datatable(
+                                                                                extensions = "Buttons",
+                                                                                options = list(
                                                                                 scrollX = TRUE,
                                                                                 scrollY = '350px',
-                                                                                paging = FALSE
+                                                                                paging = FALSE,
+                                                                                dom = "Blfrtip",
+                                                                                buttons = list(list(
+                                                                                  extend = 'csv',
+                                                                                  filename = outFile$bluntFileName("nanSummary"),
+                                                                                  text = "Download"))
                                                                               ))),
-                "Details" = output$tbl.nanSummary <- DT::renderDataTable(missings$nanPositives(data = scaledData$rawData)%>%
+                "Details" = output$tbl.nanSummary <- DT::renderDataTable(missings$nanPositives(data = filteredData$rawData)%>%
                                                                            format.data.frame(scientific = TRUE, digits = 4) %>%
-                                                                           DT::datatable(options = list(
+                                                                           DT::datatable(
+                                                                             extensions = "Buttons",
+                                                                             options = list(
                                                                              scrollX = TRUE,
                                                                              scrollY = '350px',
-                                                                             paging = FALSE
+                                                                             paging = FALSE,
+                                                                             buttons = list(list(
+                                                                               extend = 'csv',
+                                                                               filename = outFile$bluntFileName("nanDetails"),
+                                                                               text = "Download"))
                                                                            )))
         )
         
@@ -1200,21 +1487,15 @@ shinyServer(function(input, output, session) {
         scaledData$setRawData <- transformedData$rawData %>%
           model$scaleData()
         
-        outliers$resetOutliersParameter(data = scaledData$rawData)
-        
-        shiny::updateSelectInput(session, "si.outHandleFeature",
-                                 choices = filteredData$numericFeatureNames,
-                                 selected = filteredData$numericFeatureNames[1])
-        
       }
     }
     if(input$menue == "tab_regression"){
-      if(!dataLoaded()){
+      if(!outlierRevised()){
         output$plt.regressionFeature <- shiny::renderPlot(NULL)
         output$tbl.regressionFeature <- DT::renderDataTable(NULL)
         output$tbl.correlationFeature <- DT::renderDataTable(NULL)
         output$tbl.regressionMatrix <- DT::renderDataTable(NULL)
-        errorMessage <- sprintf("No data loaded.")
+        errorMessage <- sprintf("No Cleaned data set.")
         shiny::showNotification(paste(errorMessage),type = "error", duration = 10)
 
       }
@@ -1226,829 +1507,26 @@ shinyServer(function(input, output, session) {
         errorMessage <- sprintf("So far, no correlation analysis has been performed for the currently selected data set.")
         shiny::showNotification(paste(errorMessage),type = "error", duration = 10)
       }
+    }
+    if(input$menue =="tab_export"){
+      if(!dataLoaded()){
+        errorMessage <- sprintf("No data loaded.")
+        shiny::showNotification(paste(errorMessage), type = "error", duration = 10)
+      }
       else{
-        shiny::updateSelectInput(session, "si.regressionAbs",
-                                 choices = filteredData$numericFeatureNames,
-                                 selected = filteredData$numericFeatureNames[1])
-        shiny::updateSelectInput(session, "si.regressionOrd",
-                                 choices = filteredData$numericFeatureNames,
-                                 selected = filteredData$numericFeatureNames[1])
-        shiny::updateCheckboxInput(session, "cb.robustRegression",
-                                   value = regressor$robust)
+        outFile$setBaseName <- inFile$baseName
+        shiny::updateSelectInput(session, "si.exportType",
+                                 choices = exporter$exportTypeAlphabet,
+                                 selected = exporter$exportTypeAlphabet[1])
+        shiny::updateSelectInput(session, "si.suffix",
+                                 choices = exporter$reducedSuffixAlphabet,
+                                 selected = exporter$reducedSuffixAlphabet[1])
+        outFile$setExportType <- input$si.exportType
+        outFile$setSuffix <- input$si.suffix
+        outFile$updateTimeString()
+        outFile$mergeFileName()
+        exporter$setExportType <- input$si.exportType
       }
     }
   })
 })
-
-
-
-# chooseFeatureSummaryPlot <- function(obj = "pgu.data", choice="character"){
-#   if (grepl("Histogram", choice)){
-#     p <- obj$histFeatureOverview()
-#   }
-#   else if(grepl("Box Plot", choice)){
-#     p <- obj$boxPlotOverview()
-#   }
-#   return(p)
-# }
-# 
-# chooseFeatureNanTable <- function(obj = "pgu.data", choice="character"){
-#   if (grepl("Statistics", choice)){
-#     t <- obj$nanDistribution()
-#   }
-#   else if (grepl("Details", choice)){
-#     t <- obj$nanPositives()
-#   }
-#   return(t)
-# }
-# 
-# chooseFeatureOutlierTable <- function(obj ="pgu.data", optimizer = "pgu.optimizer", choice = "character"){
-#   if (grepl("Statistics", choice)){
-#     t <- optimizer$printOutlierStatistics()
-#   }
-#   else if (grepl("Details", choice)){
-#     t <- optimizer$printOutlierSummary(obj = obj)
-#   }
-#   return(t)
-# }
-# 
-# chooseFeatureOutlierPlot <- function(obj = "pgu.data", optimizer = "pgu.optimizer", choice = "character"){
-#   if (grepl("Heatmap", choice)){
-#     p <- optimizer$plotOutlierHeatmap(obj = obj)
-#   }
-#   else if (grepl("Histogram", choice)){
-#     p <- optimizer$plotOutlierHistogram()
-#   }
-#   return(p)
-# }
-# 
-# chooseCorrelationMatrixTable <- function(regObj = "pgu.regressor", corObj = "pgu.correlator", choice = "character"){
-#   switch(choice,
-#          Intercept = {return(regObj$printInterceptTbl())},
-#          Slope = {return(regObj$printSlopeTbl())},
-#          p.regression = {return(regObj$printPValueTbl())},
-#          Rho = {return(corObj$printCoefficientTbl())},
-#          p.correlation = {return(corObj$printPValueTbl())}
-#          )
-#   return(t)
-# }
-# 
-# 
-# shinyServer(function(input, output, session) {
-#   ######################
-#   # init reactive values
-#   ######################
-#   dataLoaded <- reactiveVal(value = FALSE)
-#   importer <- reactiveVal(pgu.importer$new())
-#   exporter <- reactiveVal(pgu.exporter$new())
-# 
-#   rawData <- reactiveVal()
-#   filteredData <- reactiveVal()
-#   tfData <- reactiveVal()
-#   cleanedData <- reactiveVal()
-# 
-#   filterSet <- reactiveVal()
-#   transformator <- reactiveVal()
-#   normalizer <- reactiveVal()
-#   cleaner <- reactiveVal()
-#   optimizer <- reactiveVal()
-#   regressor <- reactiveVal()
-#   correlator <- reactiveVal()
-#   hdf <- reactiveVal()
-#   #filter.rowIdx <- reactiveVal()
-#   #filter.colIdx <- reactiveVal()
-#   filter.proxy <- reactiveVal()
-#   errorMessage <- reactiveVal()
-# 
-#   ###############
-#   # sidebar menue
-#   ###############
-#   shiny::observeEvent(input$menue,{
-#     if (input$menue == "tab_import"){
-#       shiny::observeEvent(input$fi.import,{
-#         #################
-#         # update importer
-#         #################
-#         importer()$setSheetIndex(input$ni.import)
-#         importer()$setSeparator(input$rb.separator)
-#         importer()$setHeader(input$cb.header)
-#         importer()$setSkipRows(input$ni.skipRows)
-#         importer()$setUploadFileName(name = input$fi.import$datapath)
-#         importer()$setFileName(name = input$fi.import$name)
-#         importer()$splitFileName()
-#         importer()$extractFolderName()
-#         importer()$setContent(value = "Raw")
-#         importer()$createOutFileName()
-#         if(importer()$fileTypeIsValid()){
-#           ###########
-#           # load data
-#           ###########
-#           tryCatch({
-#             rawData(pgu.data$new(importer()$importFile()))
-#             dataLoaded(TRUE)
-#           },
-#           error = function(e){
-#             dataLoaded(FALSE)
-#             shiny::showNotification(e,
-#                                     duration = 10,
-#                                     type = "error",
-#                                     closeButton = TRUE)})
-#           ###########################
-#           # init all object instances
-#           ###########################
-#           # werden überhaupt weitere Datenframe benötigt?
-#           filteredData(pgu.data$new(rawData()$getRawData()))
-#           tfData(pgu.data$new(rawData()$getRawData()))
-#           cleanedData(pgu.data$new(rawData()$rawData))
-# 
-#           filterSet(pgu.filter$new(obj = rawData()))
-#           transformator(pgu.transformator$new(obj = rawData()))
-#           normalizer(pgu.normalizer$new(obj = rawData()))
-#           # cleaner(pgu.cleaner$new(dataObj = rawData(), modelObj = normalizer()))
-#           # optimizer(pgu.optimizer$new(dataObj = rawData(), modelObj = normalizer()))
-#           cleaner(pgu.cleaner$new(obj = rawData()))
-#           # can fail!!!
-#           optimizer(pgu.optimizer$new(obj = rawData()))
-#           ########################
-#           # update all ui elements
-#           ########################
-#           # update import elements
-#           output$tbl.import <- DT::renderDataTable({rawData()$getRawData() %>%
-#               format.data.frame(scientific = TRUE, digits = 4) %>%
-#               DT::datatable(options = list(scrollX = TRUE, scrollY='350px', paging=FALSE))})
-#           # update explore elements
-#           updateSelectInput(session, "si.byFeature", choices= (rawData()$getFeatureNames()))
-#           updateSelectInput(session, "si.byFeature", selected = rawData()$getFeatureNames()[1])
-#           updateSelectInput(session, "si.detailedAbs", choices= (rawData()$getFeatureNames()))
-#           updateSelectInput(session, "si.detailedAbs", selected = rawData()$getFeatureNames()[1])
-#           updateSelectInput(session, "si.detailedOrd", choices= (rawData()$getFeatureNames()))
-#           updateSelectInput(session, "si.detailedOrd", selected = rawData()$getFeatureNames()[1])
-#           # update model elements
-#           updateSelectInput(session, "si.transformationFeature", choices = (rawData()$getNumericFeatureNames()))
-#           updateSelectInput(session, "si.transformationFeature", selected = rawData()$getNumericFeatureNames()[1])
-#           updateSelectInput(session, "si.transformationType", choices = (transformator()$getTrafoAlphabet()))
-#           updateSelectInput(session, "si.transformationType", selected = transformator()$getTrafoAlphabet()[1])
-#           # update tidy elements
-#           updateSelectInput(session, "si.nanHandleMethod", choices = (cleaner()$getCleaningAgentAlphabet()))
-#           updateSelectInput(session, "si.nanHandleMethod", selected = (cleaner()$getCleaningAgentAlphabet()[1]))
-#           updateNumericInput(session, "ni.nanSeed", value = cleaner()$getSeed())
-#           updateSelectInput(session, "si.nanHandleFeature", choices = (rawData()$getNumericFeatureNames()))
-#           updateSelectInput(session, "si.nanHandleFeature", selected = rawData()$getNumericFeatureNames()[1])
-#           # update revise elements
-#           updateSelectInput(session, "si.outlierHandleMethod", choices = (optimizer()$getCleaningAgentAlphabet()))
-#           updateSelectInput(session, "si.outlierHandleMethod", selected = (optimizer()$getCleaningAgentAlphabet()[1]))
-#           updateNumericInput(session, "ni.outlierSeed", value = optimizer()$seed)
-#           updateSelectInput(session, "si.outlierHandleFeature", choices = (rawData()$getNumericFeatureNames()))
-#           updateSelectInput(session, "si.outlierHandleFeature", selected = rawData()$getNumericFeatureNames()[1])
-#           # update correlation elements
-#           updateSelectInput(session, "si.regressionAbs", choices = (rawData()$getNumericFeatureNames()))
-#           updateSelectInput(session, "si.regressionAbs", selected = (rawData()$getNumericFeatureNames()[1]))
-#           updateSelectInput(session, "si.regressionOrd", choices = (rawData()$getNumericFeatureNames()))
-#           updateSelectInput(session, "si.regressionOrd", selected = (rawData()$getNumericFeatureNames()[1]))
-#           # update overview elements
-#           shiny::updateSelectInput(session, "si.overviewContView", choices = (rawData()$getFeatureNames()))
-#           shiny::updateSelectInput(session, "si.overviewContView", selected = rawData()$getFeatureNames()[1])
-#           # update export elements
-#           shiny::updateSelectInput(session, "si.exportType", choices = (exporter()$getContentList()))
-#           shiny::updateSelectInput(session, "si.exportType", selected = exporter()$getContentList()[1])
-#           shiny::updateSelectInput(session, "si.exportFormat", choices = exporter()$getIndividualSuffixList())
-#           shiny::updateSelectInput(session, "si.exportFormat", choices = exporter()$getIndividualSuffixList()[1])
-#           ###################
-#           # update filter tab
-#           ###################
-#           output$tbl.filterData <- DT::renderDataTable(
-#             rawData()$getRawData(),
-#             selection = list(target = "column"),
-#             rownames = FALSE,
-#             options = list(scrollX = TRUE, scrollY='350px', paging=FALSE, autoWidth = TRUE, columnDefs = list(list(width = '75px', targets = "_all"))),
-#             filter = "top")
-#           filter.proxy(DT::dataTableProxy("tbl.filterData"))
-#           ##################
-#           # initial analysis
-#           ##################
-#           normalizer()$testDataForNormality(obj = tfData())
-#         }
-#         else{
-#           dataLoaded(FALSE)
-#           if(length(importer()$getSuffix())>0){
-#             errorMessage(sprintf("unsupported file type: %s", importer()$getSuffix()))
-#           }
-#           else{
-#             errorMessage(sprintf("No data loaded. Import valid file."))
-#           }
-#           shiny::showNotification(errorMessage(),
-#                                   duration = 10,
-#                                   type = "error",
-#                                   closeButton = TRUE)
-# 
-#         }
-#       })
-#     }
-#     else if (input$menue == "tab_filter"){
-#       if(importer()$fileTypeIsValid()){
-#         filter.proxy() %>%
-#           DT::reloadData(clearSelection = "none")
-# 
-#         shiny::observeEvent(input$btn.filterReset, {
-#           rawData() %>%
-#             filterSet()$initFilterIdx()
-#           filter.proxy() %>%
-#             DT::clearSearch()
-#           filter.proxy() %>%
-#             DT::reloadData(clearSelection = "all")
-#           rawData() %>%
-#             filterSet()$filterData() %>%
-#             transformator()$update()
-#           rawData() %>%
-#             filterSet()$filterData() %>%
-#             normalizer()$update()
-#           ########################
-#           # update all ui elements
-#           ########################
-#           shiny::updateSelectInput(session, "si.detailedAbs", choices= (filterSet()$getFeatureNames()))
-#           shiny::updateSelectInput(session, "si.detailedAbs", selected = filterSet()$getFeatureNames()[1])
-#           shiny::updateSelectInput(session, "si.detailedOrd", choices= (filterSet()$getFeatureNames()))
-#           shiny::updateSelectInput(session, "si.detailedOrd", selected = filterSet()$getFeatureNames()[1])
-# 
-#           shiny::updateSelectInput(session, "si.transformationFeature", choices = (filterSet()$getNumericFeatureNames()))
-#           shiny::updateSelectInput(session, "si.transformationFeature", selected = filterSet()$getNumericFeatureNames()[1])
-#           shiny::updateSelectInput(session, "si.transformationType", choices = (transformator()$getTrafoAlphabet()))
-#           shiny::updateSelectInput(session, "si.transformationType", selected = transformator()$getFeatureTrafoType(feature = filterSet()$getNumericFeatureNames()[1]))
-# 
-#           shiny::updateSelectInput(session, "si.nanHandleFeature", choices = (filterSet()$getNumericFeatureNames()))
-#           shiny::updateSelectInput(session, "si.nanHandleFeature", selected = filterSet()$getNumericFeatureNames()[1])
-# 
-#           shiny::updateSelectInput(session, "si.outlierHandleFeature", choices = (filterSet()$getNumericFeatureNames()))
-#           shiny::updateSelectInput(session, "si.outlierHandleFeature", selected = filterSet()$getNumericFeatureNames()[1])
-# 
-#           updateSelectInput(session, "si.regressionAbs", choices = (filterSet()$getNumericFeatureNames()))
-#           updateSelectInput(session, "si.regressionAbs", selected = (filterSet()$getNumericFeatureNames()[1]))
-#           updateSelectInput(session, "si.regressionOrd", choices = (filterSet()$getNumericFeatureNames()))
-#           updateSelectInput(session, "si.regressionOrd", selected = (filterSet()$getNumericFeatureNames()[1]))
-#         })
-# 
-#         shiny::observeEvent(input$btn.filterApply, {
-#           if (length(input$tbl.filterData_rows_all) < 1){
-#             filterSet()$initFilterRowIdx(obj = rawData())
-#           }
-#           else {
-#             filterSet()$setFilterRowIdx(idx = input$tbl.filterData_rows_all)
-#           }
-#           if (length(input$tbl.filterData_columns_selected) <1){
-#             filterSet()$initFilterColIdx(obj = rawData())
-#           }
-#           else{
-#             filterSet()$setFilterColIdx(idx = input$tbl.filterData_columns_selected+1)
-#           }
-#           rawData() %>%
-#             filterSet()$filterData() %>%
-#             transformator()$update()
-#           rawData() %>%
-#             filterSet()$filterData() %>%
-#             normalizer()$update()
-#           ########################
-#           # update all ui elements
-#           ########################
-#           updateSelectInput(session, "si.detailedAbs", choices= (filterSet()$getFeatureNames()))
-#           updateSelectInput(session, "si.detailedAbs", selected = filterSet()$getFeatureNames()[1])
-#           updateSelectInput(session, "si.detailedOrd", choices= (filterSet()$getFeatureNames()))
-#           updateSelectInput(session, "si.detailedOrd", selected = filterSet()$getFeatureNames()[1])
-# 
-#           updateSelectInput(session, "si.transformationFeature", choices = (filterSet()$getNumericFeatureNames()))
-#           updateSelectInput(session, "si.transformationFeature", selected = filterSet()$getNumericFeatureNames()[1])
-#           updateSelectInput(session, "si.transformationType", choices = (transformator()$getTrafoAlphabet()))
-#           updateSelectInput(session, "si.transformationType", selected = transformator()$getFeatureTrafoType(feature = filterSet()$getFeatureNames()[1]))
-# 
-#           shiny::updateSelectInput(session, "si.nanHandleFeature", choices = (filterSet()$getNumericFeatureNames()))
-#           shiny::updateSelectInput(session, "si.nanHandleFeature", selected = filterSet()$getNumericFeatureNames()[1])
-# 
-#           shiny::updateSelectInput(session, "si.outlierHandleFeature", choices = (filterSet()$getNumericFeatureNames()))
-#           shiny::updateSelectInput(session, "si.outlierHandleFeature", selected = filterSet()$getNumericFeatureNames()[1])
-# 
-#           updateSelectInput(session, "si.regressionAbs", choices = (filterSet()$getNumericFeatureNames()))
-#           updateSelectInput(session, "si.regressionAbs", selected = (filterSet()$getNumericFeatureNames()[1]))
-#           updateSelectInput(session, "si.regressionOrd", choices = (filterSet()$getNumericFeatureNames()))
-#           updateSelectInput(session, "si.regressionOrd", selected = (filterSet()$getNumericFeatureNames()[1]))
-#         })
-#       }
-#       else {
-#         errorMessage(sprintf("No data loaded. Import a valid file."))
-#         shiny::showNotification(errorMessage(),
-#                                 duration = 10,
-#                                 type = "error",
-#                                 closeButton = TRUE)
-#       }
-#     }
-#     else if (input$menue == "tab_explore"){
-#       if(importer()$fileTypeIsValid()){
-#         ########################
-#         # update data
-#         ########################
-#         filteredData(rawData() %>%
-#                        filterSet()$filterData())
-#         ########################
-#         # calculate
-#         ########################
-#         shiny::observeEvent(input$tabsetExplore, {
-#           switch(input$tabsetExplore,
-#                  Graphics = {output$plt.exploreGraphics <- renderPlot({filteredData()$plotFeature(abscissae = input$si.detailedAbs, ordinate = input$si.detailedOrd)}, height = 400)},
-#                  Statistics = {output$tbl.exploreStatistics <- DT::renderDataTable({filteredData()$dataStatistics() %>%
-#                      format.data.frame(scientific = TRUE, digits = 4) %>%
-#                      DT::datatable(options = list(scrollX = TRUE, scrollY='350px', paging=FALSE))})})})
-#       }
-#       else{
-#         errorMessage(sprintf("No data loaded. Import a valid file."))
-#         shiny::showNotification(errorMessage(),
-#                                 duration = 10,
-#                                 type = "error",
-#                                 closeButton = TRUE)
-#       }
-#     }
-#     else if (input$menue == "tab_model"){
-#       if(importer()$fileTypeIsValid()){
-#         ########################
-#         # update data
-#         ########################
-#         filteredData(rawData() %>%
-#                        filterSet()$filterData())
-#         tfData(filteredData() %>%
-#                  transformator()$model())
-#         tfData() %>%
-#           normalizer()$testDataForNormality()
-#         shiny::observeEvent(input$tabsetModel, {
-#           switch(input$tabsetModel,
-#                  "Transformation" = {
-#                    shiny::observeEvent(input$si.transformationFeature,{
-#                      # update ui
-#                      updateSelectInput(session, "si.transformationType",
-#                                        selected = transformator()$getFeatureTrafoType(feature = input$si.transformationFeature))
-#                      updateCheckboxInput(session, "cb.mirrorLogic",
-#                                          value = transformator()$getFeatureMirrorLogic(feature = input$si.transformationFeature))
-#                      # run analysis
-#                      tfData() %>%
-#                        normalizer()$testFeatureForNormality(feature = input$si.transformationFeature)
-#                      # log result to screen
-#                      output$tbl.featureTransformFit <- DT::renderDataTable({normalizer()$featureFitResult(feature = input$si.transformationFeature) %>%
-#                          format.data.frame(scientific = TRUE, digits = 4) %>%
-#                          DT::datatable(options = list(scrollX = TRUE, scrollY='350px', paging=FALSE))})
-#                      output$tbl.featureTransformTest <- DT::renderDataTable({normalizer()$featureTestResult(feature = input$si.transformationFeature) %>%
-#                          format.data.frame(scientific = TRUE, digits = 4) %>%
-#                          DT::datatable(options = list(scrollX = TRUE, scrollY='350px', paging=FALSE))})
-#                      output$plt.featureTransformFit <- renderPlot(normalizer()$plotFeatureFitResult(feature = input$si.transformationFeature))
-#                    })
-# 
-#                    shiny::observeEvent(input$si.transformationType,{
-#                      if(input$si.transformationType != transformator()$getFeatureTrafoType(feature = input$si.transformationFeature)){
-#                        # run analysis
-#                        transformator()$setFeatureTrafoType(feature = input$si.transformationFeature, type = input$si.transformationType)
-#                        filteredData() %>%
-#                          transformator()$optimize(feature = input$si.transformationFeature)
-#                        tfData(filteredData() %>%
-#                                 transformator()$model())
-# 
-#                        if(!tfData() %>%
-#                           normalizer()$testFeatureForNormality(feature = input$si.transformationFeature)){
-#                          errorMessage(sprintf("Error during Maximum Likelihood Estimation. Choose different model."))
-#                          shiny::showNotification(errorMessage(),
-#                                                  duration = 10,
-#                                                  type = "error",
-#                                                  closeButton = TRUE)
-#                          updateSelectInput(session, "si.transformationType", selected = transformator()$getTrafoAlphabet()[1])
-#                        }
-#                        # fit result success logical einführen
-#                        # if false set transformValue to none!
-# 
-#                        # log result to screen
-#                        output$tbl.featureTransformFit <- DT::renderDataTable({normalizer()$featureFitResult(feature = input$si.transformationFeature) %>%
-#                            format.data.frame(scientific = TRUE, digits = 4) %>%
-#                            DT::datatable(options = list(scrollX = TRUE, scrollY='350px', paging=FALSE))})
-#                        output$tbl.featureTransformTest <- DT::renderDataTable({normalizer()$featureTestResult(feature = input$si.transformationFeature) %>%
-#                            format.data.frame(scientific = TRUE, digits = 4) %>%
-#                            DT::datatable(options = list(scrollX = TRUE, scrollY='350px', paging=FALSE))})
-#                        output$plt.featureTransformFit <- renderPlot({normalizer()$plotFeatureFitResult(feature = input$si.transformationFeature)})
-#                      }
-#                    })
-#                    shiny::observeEvent(input$cb.mirrorLogic, {
-#                      transformator()$setFeatureMirrorLogic(feature = input$si.transformationFeature, logic = input$cb.mirrorLogic)
-#                      filteredData() %>%
-#                        transformator()$estimateAddConst()
-#                      #print(transformator()$getTrafoPara())
-#                      filteredData() %>%
-#                        transformator()$optimize(feature = input$si.transformationFeature)
-#                      tfData(filteredData() %>%
-#                               transformator()$model())
-#                      if(!tfData() %>%
-#                         normalizer()$testFeatureForNormality(feature = input$si.transformationFeature)){
-#                        errorMessage(sprintf("Error during Maximum Likelihood Estimation. Choose different model."))
-#                        shiny::showNotification(errorMessage(),
-#                                                duration = 10,
-#                                                type = "error",
-#                                                closeButton = TRUE)
-#                        if(input$cb.mirrorLogic){
-#                          shiny::updateCheckboxInput(session, "cb.mirrorLogic", value = FALSE)
-#                        }
-#                        else{
-#                          shiny::updateCheckboxInput(session, "cb.mirrorLogic", value = TRUE)
-#                        }
-#                      }
-# 
-#                      # log result to screen
-#                      output$tbl.featureTransformFit <- DT::renderDataTable({normalizer()$featureFitResult(feature = input$si.transformationFeature) %>%
-#                          format.data.frame(scientific = TRUE, digits = 4) %>%
-#                          DT::datatable(options = list(scrollX = TRUE, scrollY='350px', paging=FALSE))})
-#                      output$tbl.featureTransformTest <- DT::renderDataTable({normalizer()$featureTestResult(feature = input$si.transformationFeature) %>%
-#                          format.data.frame(scientific = TRUE, digits = 4) %>%
-#                          DT::datatable(options = list(scrollX = TRUE, scrollY='350px', paging=FALSE))})
-#                      output$plt.featureTransformFit <- renderPlot({normalizer()$plotFeatureFitResult(feature = input$si.transformationFeature)})
-#                    })
-#                  },
-#                  "Transformation Parameter" = {
-#                    output$tbl.transformationParameter <- DT::renderDataTable(transformator()$getTrafoPara() %>%
-#                                                                                format.data.frame(scientific = TRUE, digits = 4),
-#                                                                              options = list(scrollX = TRUE, scrollY='350px', paging=FALSE))},
-#                  "Model Parameter" = {
-#                    output$tbl.modelParameter <- DT::renderDataTable(normalizer()$modelParameter %>%
-#                                                                       dplyr::select(features, expMu:expSigma) %>%
-#                                                                       format.data.frame(scientific = TRUE, digits = 4),
-#                                                                     options = list(scrollX = TRUE, scrollY='350px', paging=FALSE))},
-#                  "Model Quality" = {
-#                    output$tbl.modelQuality <- DT::renderDataTable(normalizer()$modelParameter %>%
-#                                                                     dplyr::select(features, dataPoints:rmse) %>%
-#                                                                     format.data.frame(scientific = TRUE, digits = 4),
-#                                                                   options = list(scrollX = TRUE, scrollY='350px', paging=FALSE))},
-#                  "Test Results" = {
-#                    output$tbl.testResults <- DT::renderDataTable(normalizer()$modelParameter %>%
-#                                                                    dplyr::select(features, w.shapiro:p.anderson) %>%
-#                                                                    format.data.frame(scientific = TRUE, digits = 4),
-#                                                                  options = list(scrollX = TRUE, scrollY='350px', paging=FALSE))})})
-#       }
-#       else{
-#         errorMessage(sprintf("No data loaded. Import a valid file."))
-#         shiny::showNotification(errorMessage(),
-#                                 duration = 10,
-#                                 type = "error",
-#                                 closeButton = TRUE)
-#       }
-#     }
-#     else if (input$menue == "tab_tidy"){
-#       if(importer()$fileTypeIsValid()){
-#         ########################
-#         # update data
-#         ########################
-#         filteredData(rawData() %>%
-#                        filterSet()$filterData())
-#         tfData(filteredData() %>%
-#                  transformator()$model() %>%
-#                  normalizer()$scaleData())
-# 
-#         tfData()$update()
-# 
-#         # cleaner()$update(dataObj = tfData(), modelObj = normalizer())
-#         cleaner()$update(obj = tfData())
-#         cleaner()$findCandidates(obj = tfData())
-#         cleaner()$setSeed(value = input$ni.nanSeed)
-#         cleanedData(tfData() %>%
-#                       cleaner()$cleanData() %>%
-#                       normalizer()$inverseScaleData() %>%
-#                       transformator()$inverseModel())
-#         cleanedData()$update()
-# 
-#         shiny::observeEvent(input$tabsetTidy,{
-#           switch(input$tabsetTidy,
-#                  Summary = {
-#                    output$plt.nanSummary <- renderPlot({tfData()$nanHeatmap()})
-#                    output$tbl.nanSummary <- DT::renderDataTable({tfData() %>%
-#                        transformator()$inverseTransformData() %>%
-#                        chooseFeatureNanTable(choice = input$si.nanSummary) %>%
-#                        DT::datatable(options = list(scrollX = TRUE, scrollY='350px', paging=FALSE))})
-#                  },
-#                  Tidy = {
-#                    shiny::updateSelectInput(session, "si.nanHandleMethod", selected = (cleaner()$getCleaningAgent()))
-#                    shiny::updateNumericInput(session, "ni.nanSeed", value=cleaner()$getSeed())
-# 
-#                    shiny::observeEvent(input$ni.nanSeed,{
-#                      cleaner()$setSeed(value = input$ni.nanSeed)
-#                      cleanedData(tfData() %>%
-#                                    cleaner()$cleanData() %>%
-#                                    normalizer()$inverseScaleData() %>%
-#                                    transformator()$inverseModel())
-#                      cleanedData()$update()
-#                      output$plt.nanCleaningSummary <- renderPlot({cleaner()$featurePlot(obj = cleanedData(), feature = input$si.nanHandleFeature)})
-#                      output$tbl.nanCleaningSummary <- DT::renderDataTable({cleanedData()$printSubset(indices = cleaner()$candidateIndices()) %>%
-#                          format.data.frame(scientific = TRUE, digits = 4) %>%
-#                          DT::datatable(options = list(scrollX = TRUE, scrollY='350px', paging=FALSE))
-#                      })
-#                    })
-#                    shiny::observeEvent(input$si.nanHandleMethod,{
-#                      cleaner()$setCleaningAgent(value = input$si.nanHandleMethod)
-#                      cleanedData(tfData() %>%
-#                                    cleaner()$cleanData() %>%
-#                                    normalizer()$inverseScaleData() %>%
-#                                    transformator()$inverseModel())
-#                      cleanedData()$update()
-#                      output$plt.nanCleaningSummary <- renderPlot({cleaner()$featurePlot(obj = cleanedData(), feature = input$si.nanHandleFeature)})
-#                      output$tbl.nanCleaningSummary <- DT::renderDataTable({cleanedData()$printSubset(indices = cleaner()$candidateIndices()) %>%
-#                          format.data.frame(scientific = TRUE, digits = 4) %>%
-#                          DT::datatable(options = list(scrollX = TRUE, scrollY='350px', paging=FALSE))})
-#                    })
-#                  })
-#         })
-#       }
-#       else{
-#         errorMessage(sprintf("No data loaded. Import a valid file."))
-#         shiny::showNotification(errorMessage(),
-#                                 duration = 10,
-#                                 type = "error",
-#                                 closeButton = TRUE)
-#       }
-#     }
-#     else if (input$menue == "tab_revise"){
-#       if(importer()$fileTypeIsValid()){
-#         ########################
-#         # update data
-#         ########################
-#         filteredData(rawData() %>%
-#                        filterSet()$filterData())
-# 
-#         tfData(filteredData() %>%
-#                  transformator()$model() %>%
-#                  normalizer()$scaleData())
-#         tfData()$update()
-# 
-#         #optimizer()$update(dataObj = tfData(), modelObj = normalizer())
-#         optimizer()$update(obj = tfData())
-#         optimizer()$findCandidates(obj = tfData())
-#         optimizer()$setSeed(value = input$ni.outlierSeed)
-#         cleanedData(tfData() %>%
-#                       optimizer()$cleanData() %>%
-#                       normalizer()$inverseScaleData() %>%
-#                       transformator()$inverseModel())
-#         cleanedData()$update()
-# 
-#         shiny::observeEvent(input$tabsetRevise,{
-#           switch(input$tabsetRevise,
-#                  "Summary" = {
-#                    output$tbl.outlierSummary <- DT::renderDataTable({chooseFeatureOutlierTable(obj = tfData(), optimizer = optimizer(), choice = input$si.outlierSummaryTbl)})
-#                    output$plt.outlierHist <- renderPlot({chooseFeatureOutlierPlot(obj = tfData(), optimizer = optimizer(), choice = input$si.outlierSummaryPlt)})},
-#                  "Revise" = {
-#                    shiny::updateSelectInput(session, "si.outlierHandleMethod", selected = (optimizer()$cleaningAgent))
-#                    shiny::updateNumericInput(session, "ni.outlierSeed", value=optimizer()$seed)
-#                    shiny::observeEvent(input$ni.outlierSeed,{
-#                      optimizer()$setSeed(value = input$ni.outlierSeed)
-#                      cleanedData(tfData() %>%
-#                                    optimizer()$cleanData() %>%
-#                                    normalizer()$inverseScaleData() %>%
-#                                    transformator()$inverseModel())
-#                      cleanedData()$update()
-#                      output$plt.outlierCleaningSummary <- renderPlot({optimizer()$featurePlot(obj = cleanedData(), feature = input$si.outlierHandleFeature)})
-#                      output$tbl.outlierCleaningSummary <- DT::renderDataTable({cleanedData()$printSubset(indices = optimizer()$candidateIndices()) %>%
-#                          format.data.frame(scientific = TRUE, digits = 4) %>%
-#                          DT::datatable(options = list(scrollX = TRUE, scrollY='350px', paging=FALSE))})
-#                    })
-#                    shiny::observeEvent(input$si.outlierHandleMethod,{
-#                      optimizer()$setCleaningAgent(value = input$si.outlierHandleMethod)
-#                      cleanedData(tfData() %>%
-#                                    optimizer()$cleanData() %>%
-#                                    normalizer()$inverseScaleData() %>%
-#                                    transformator()$inverseModel())
-#                      cleanedData()$update()
-#                      output$plt.outlierCleaningSummary <- renderPlot({optimizer()$featurePlot(obj = cleanedData(), feature = input$si.outlierHandleFeature)})
-#                      output$tbl.outlierCleaningSummary <- DT::renderDataTable({cleanedData()$printSubset(indices = optimizer()$candidateIndices()) %>%
-#                          format.data.frame(scientific = TRUE, digits = 4) %>%
-#                          DT::datatable(options = list(scrollX = TRUE, scrollY='350px', paging=FALSE))})
-#                    })
-#                  })
-#         })
-#       }
-#       else{
-#         errorMessage(sprintf("No data loaded. Import a valid file."))
-#         shiny::showNotification(errorMessage(),
-#                                 duration = 10,
-#                                 type = "error",
-#                                 closeButton = TRUE)
-#       }
-#     }
-#     else if (input$menue == "tab_correlate"){
-#       if(importer()$fileTypeIsValid()){
-#         ########################
-#         # update data
-#         ########################
-#         filteredData(rawData() %>%
-#                        filterSet()$filterData())
-#         filteredData()$update()
-#         tfData(filteredData() %>%
-#                  transformator()$model())
-#         tfData()$update()
-#         cleanedData(tfData() %>%
-#                       cleaner()$cleanData() %>%
-#                       optimizer()$cleanData() %>%
-#                       transformator()$inverseModel())
-#         cleanedData()$update()
-#         regressor(pgu.regressor$new(names = filterSet()$getNumericFeatureNames()))
-#         regressor()$createModelMatrix(obj = cleanedData())
-#         regressor()$setAbscissa(filterSet()$getNumericFeatureNames()[1])
-#         regressor()$setOrdinate(filterSet()$getNumericFeatureNames()[2])
-#         regressor()$createModel(obj = cleanedData())
-#         correlator(pgu.correlator$new(names = filterSet()$getNumericFeatureNames(), method = "Spearman"))
-#         correlator()$createCorrelationMatrix(obj = cleanedData())
-#         ########################
-#         # update all ui elements
-#         ########################
-#         updateSelectInput(session, "si.regressionAbs", choices = (regressor()$getFeatureNames()))
-#         updateSelectInput(session, "si.regressionAbs", selected = (regressor()$getAbscissa()))
-#         updateSelectInput(session, "si.regressionOrd", choices = (regressor()$getValidOrdinates()))
-#         updateSelectInput(session, "si.regressionOrd", selected = (regressor()$getOrdinate()))
-#         #calculate regression
-#         shiny::observeEvent(input$si.regressionAbs, {
-#           regressor()$setAbscissa(input$si.regressionAbs)
-#           updateSelectInput(session, "si.regressionOrd", choices = (regressor()$getValidOrdinates()))
-#           updateSelectInput(session, "si.regressionOrd", selected = (regressor()$getValidOrdinates()[1]))
-#           regressor()$createModel(obj = cleanedData())
-#           output$plt.regression <- renderPlot({regressor()$plotResult()})
-#           output$tbl.individualRegression <- DT::renderDataTable({regressor()$printModel() %>%
-#               merge(correlator()$printTestResult(abscissa = input$si.regressionAbs, ordinate = input$si.regressionOrd)) %>%
-#               format.data.frame(scientific = TRUE, digits = 4) %>%
-#               DT::datatable(options = list(scrollX = TRUE, scrollY=TRUE, paging=FALSE))})
-#         })
-# 
-#         shiny::observeEvent(input$si.regressionOrd, {
-#           regressor()$setOrdinate(input$si.regressionOrd)
-#           regressor()$createModel(obj = cleanedData())
-#           output$plt.regression <- renderPlot({regressor()$plotResult()})
-#           output$tbl.individualRegression <- DT::renderDataTable({regressor()$printModel() %>%
-#               merge(correlator()$printTestResult(abscissa = input$si.regressionAbs, ordinate = input$si.regressionOrd)) %>%
-#               format.data.frame(scientific = TRUE, digits = 4) %>%
-#               DT::datatable(options = list(scrollX = TRUE, scrollY=TRUE, paging=FALSE))})
-#         })
-#         shiny::observeEvent(input$si.correlationStat,{
-#           output$tbl.correlationMatrix <- DT::renderDataTable({chooseCorrelationMatrixTable(regObj = regressor(), corObj = correlator(), choice = input$si.correlationStat) %>%
-#               format.data.frame(scientific = TRUE, digits = 4) %>%
-#               DT::datatable(options = list(scrollX = TRUE, scrollY=TRUE, paging=FALSE))})
-# 
-#         })
-#       }
-#       else{
-#         errorMessage(sprintf("No data loaded. Import a valid file."))
-#         shiny::showNotification(errorMessage(),
-#                                 duration = 10,
-#                                 type = "error",
-#                                 closeButton = TRUE)
-#       }
-#     }
-#     else if (input$menue == "tab_overview"){
-#       if(importer()$fileTypeIsValid()){
-#         ########################
-#         # update data
-#         ########################
-#         filteredData(rawData() %>%
-#                        filterSet()$filterData())
-#         filteredData()$update()
-#         tfData(filteredData() %>%
-#                  transformator()$model() %>%
-#                  normalizer()$scaleData())
-#         tfData()$update()
-#         cleanedData(tfData() %>%
-#                       cleaner()$cleanData() %>%
-#                       optimizer()$cleanData() %>%
-#                       normalizer()$inverseScaleData() %>%
-#                       transformator()$inverseModel())
-#         cleanedData()$update()
-#         ########################
-#         # update all ui elements
-#         ########################
-#         shiny::updateSelectInput(session, "si.overviewContView", choices = (filteredData()$featureNames))
-#         shiny::updateSelectInput(session, "si.overviewContView", selected = filteredData()$featureNames[1])
-# 
-#         shiny::observeEvent(input$tabsetOverview,{
-#           switch(input$tabsetOverview,
-#                  Data = {
-#                    shiny::observeEvent(input$si.overviewDataData,{
-#                      switch(input$si.overviewDataData,
-#                             Raw = {output$tbl.overviewData <- DT::renderDataTable({filteredData()$getRawData() %>%
-#                                 format.data.frame(scientific = TRUE, digits = 4) %>%
-#                                 DT::datatable(options = list(scrollX = TRUE, scrollY='350px', paging=FALSE))})},
-#                             Transformed = {output$tbl.overviewData <- DT::renderDataTable({tfData()$getRawData() %>%
-#                                 format.data.frame(scientific = TRUE, digits = 4) %>%
-#                                 DT::datatable(options = list(scrollX = TRUE, scrollY='350px', paging=FALSE))})},
-#                             Tidy = {output$tbl.overviewData <- DT::renderDataTable({cleanedData()$getRawData() %>%
-#                                 format.data.frame(scientific = TRUE, digits = 4) %>%
-#                                 DT::datatable(options = list(scrollX = TRUE, scrollY='350px', paging=FALSE))})})})},
-#                  Frequency = {
-#                    shiny::observeEvent(input$si.overviewFreqData,{
-#                      switch(input$si.overviewFreqData,
-#                             Raw = {output$plt.overviewFreq <- renderPlot({chooseFeatureSummaryPlot(obj = filteredData(), choice=input$si.overviewFreqView)}, height = ceiling(filteredData()$numberOfFeatures()/5)*150)},
-#                             Transformed = {output$plt.overviewFreq <- renderPlot({chooseFeatureSummaryPlot(obj = tfData(), choice=input$si.overviewFreqView)}, height = ceiling(tfData()$numberOfFeatures()/5)*150)},
-#                             Tidy = {output$plt.overviewFreq <- renderPlot({chooseFeatureSummaryPlot(obj = cleanedData(), choice=input$si.overviewFreqView)}, height = ceiling(cleanedData()$numberOfFeatures()/5)*150)})})},
-#                  Continuous = {
-#                    shiny::observeEvent(input$si.overviewContData,{
-#                      switch (input$si.overviewContData,
-#                              Raw = {
-#                                output$plt.overviewCont <- renderPlot({filteredData()$plotFeatureOverview(abscissae = input$si.overviewContView)}, height = ceiling(filteredData()$numberOfFeatures()/5)*150)},
-#                              Transformed = {
-#                                output$plt.overviewCont <- renderPlot({tfData()$plotFeatureOverview(abscissae = input$si.overviewContView)}, height = ceiling(tfData()$numberOfFeatures()/5)*150)},
-#                              Tidy ={
-#                                output$plt.overviewCont <- renderPlot({cleanedData()$plotFeatureOverview(abscissae = input$si.overviewContView)}, height = ceiling(cleanedData()$numberOfFeatures()/5)*150)})})},
-#                  Statistics = {
-#                    shiny::observeEvent(input$si.overviewStatisticsData,{
-#                      switch(input$si.overviewStatisticsData,
-#                             Raw = {output$tbl.overviewStatistics <- DT::renderDataTable({filteredData()$dataStatistics() %>%
-#                                 format.data.frame(scientific = TRUE, digits = 4) %>%
-#                                 DT::datatable(options = list(scrollX = TRUE, scrollY='350px', paging=FALSE))})},
-#                             Transformed = {output$tbl.overviewStatistics <- DT::renderDataTable({tfData()$dataStatistics() %>%
-#                                 format.data.frame(scientific = TRUE, digits = 4) %>%
-#                                 DT::datatable(options = list(scrollX = TRUE, scrollY='350px', paging=FALSE))})},
-#                             Tidy = {output$tbl.overviewStatistics <- DT::renderDataTable({cleanedData()$dataStatistics() %>%
-#                                 format.data.frame(scientific = TRUE, digits = 4) %>%
-#                                 DT::datatable(options = list(scrollX = TRUE, scrollY='350px', paging=FALSE))})}
-#                      )})})})
-#       }
-#       else{
-#         errorMessage(sprintf("No data loaded. Import a valid file."))
-#         shiny::showNotification(errorMessage(),
-#                                 duration = 10,
-#                                 type = "error",
-#                                 closeButton = TRUE)
-#       }
-#     }
-#     else if (input$menue == "tab_export"){
-#       if(importer()$fileTypeIsValid()){
-#         ########################
-#         # update data
-#         ########################
-#         filteredData(rawData() %>%
-#                        filterSet()$filterData())
-#         filteredData()$update()
-#         tfData(filteredData() %>%
-#                  transformator()$model() %>%
-#                  normalizer()$scaleData() %>%
-#                  cleaner()$cleanData() %>%
-#                  optimizer()$cleanData())
-#         tfData()$update()
-#         cleanedData(tfData() %>%
-#                       normalizer()$inverseScaleData() %>%
-#                       transformator()$inverseModel())
-#         cleanedData()$update()
-#         #################
-#         # update exporter
-#         #################
-#         exporter()$setUploadFileName(name = importer()$getUploadFileName())
-#         exporter()$setFileName(name = importer()$getFileName())
-#         exporter()$splitFileName()
-#         exporter()$extractFolderName()
-#         exporter()$setSuffix(value = input$si.exportFormat)
-#         exporter()$setContent(value = input$si.exportType)
-#         exporter()$createOutFileName()
-#         ##################
-#         # init hdf support
-#         ##################
-#         hdf(pgu.hdf5$new())
-#         exporter()$setHdf(hdf())
-# 
-#         shiny::observeEvent(input$si.exportType,{
-#           ########################
-#           # update all ui elements
-#           ########################
-#           if (input$si.exportType == "Complete"){
-#             shiny::updateSelectInput(session, "si.exportFormat", choices = exporter()$getComprehensiveSuffixList())
-#           }
-#           else{
-#             shiny::updateSelectInput(session, "si.exportFormat", choices = exporter()$getIndividualSuffixList())
-#           }
-#           #shiny::updateSelectInput(session, "si.exportFormat", selected = "csv")
-#           #################
-#           # update exporter
-#           #################
-#           exporter()$setSuffix(value = input$si.exportFormat)
-#           exporter()$setContent(value = input$si.exportType)
-#           exporter()$createOutFileName()
-#           #cat(exporter()$instanceSummary())
-#         })
-# 
-#         shiny::observeEvent(input$si.exportFormat,{
-#           #################
-#           # update exporter
-#           #################
-#           exporter()$setSuffix(value = input$si.exportFormat)
-#           exporter()$setContent(value = input$si.exportType)
-#           exporter()$createOutFileName()
-#           #cat(exporter()$instanceSummary())
-#         })
-# 
-#         output$db.export <- shiny::downloadHandler(
-#           filename = function(){exporter()$getOutFileName()},
-#           content = function(file){
-#             exporter()$setUploadFileName(file)
-#             exporter()$export(obj = c(filteredData(),tfData(),cleanedData()), transformator = transformator(), model = normalizer(), cleaner = cleaner(), optimizer = optimizer())
-#           }
-#         )
-#       }
-#       else{
-#         errorMessage(sprintf("No data loaded. Import a valid file."))
-#         shiny::showNotification(errorMessage(),
-#                                 duration = 10,
-#                                 type = "error",
-#                                 closeButton = TRUE)
-#       }
-#     }
-#   })
-# })

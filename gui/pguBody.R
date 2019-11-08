@@ -584,19 +584,14 @@ body <- shinydashboard::dashboardBody(shinydashboard::tabItems(
                                     "si.regressionStats",
                                     width = "100%",
                                     label = h5("Statistics"),
-                                    choices = list("Intercept",
-                                                   "Slope",
-                                                   "p.Regression",
+                                    choices = list("Intercept", "p.Intercept",
+                                                   "Slope", "p.Slope",
                                                    "r", "p.Pearson",
                                                    "tau", "p.Kendall",
                                                    "rho", "p.Spearman"),
                                     selected = 1
                                   ),
-                                  shiny::checkboxInput(
-                                    "cb.robustRegression",
-                                    label = h5("robust"),
-                                    value = FALSE
-                                  ),
+                                  shiny::hr(),
                                   shiny::actionButton(
                                     inputId = "ab.regression",
                                     label = "calculate",
@@ -649,167 +644,25 @@ body <- shinydashboard::dashboardBody(shinydashboard::tabItems(
                               )
       )
     )
-  )
+  ),
+  shinydashboard::tabItem(tabName = "tab_export",
+                          fluidPage(
+                            width = 12,
+                            shinydashboard::box(
+                              width = 12,
+                              title = "Download Results",
+                              status = "primary",
+                              solidHeader = TRUE,
+                              collapsible = TRUE,
+                              shiny::selectInput("si.exportType", label = h5("Data Set"),
+                                                 choices = list(),
+                                                 selected = 1),
+                              shiny::selectInput("si.suffix", label = h5("Format"),
+                                                 choices = list(),
+                                                 selected = 1),
+                              
+                              shiny::downloadButton('db.export', 'Download'))))
 ))
     
 
-   
-    # shinydashboard::tabItem(tabName = "tab_correlate",
-    #                         shiny::fluidPage(
-    #                           width = 12,
-    #                           title = "Correlation and Regression",
-    #                           id = "tabsetCorrelation",
-    #                           shinydashboard::box(
-    #                             width = 12,
-    #                             title = "Linear Regression",
-    #                             status = "primary",
-    #                             solidHeader = TRUE,
-    #                             collapsible = TRUE,
-    #                             shiny::fluidPage(
-    #                               shiny::fluidRow(
-    #                                 shiny::column(2,
-    #                                               shiny::selectInput("si.regressionAbs", label = h5("Abscissae"),
-    #                                                                  choices = list(),
-    #                                                                  selected = 1),
-    #                                               shiny::selectInput("si.regressionOrd", label = h5("Ordinate"),
-    #                                                                  choices = list(),
-    #                                                                  selected = 1)),
-    #                                 column(10,
-    #                                        plotOutput("plt.regression"),
-    #                                        DT::dataTableOutput("tbl.individualRegression"))))),
-    #                           shiny::hr(),
-    #                           shinydashboard::box(
-    #                             width = 12,
-    #                             title = "Statistics",
-    #                             status = "primary",
-    #                             solidHeader = TRUE,
-    #                             collapsible = TRUE,
-    #                             shiny::fluidPage(
-    #                               shiny::fluidRow(
-    #                                 shiny::column(2,
-    #                                               shiny::selectInput("si.correlationStat", label = h5("Statistics"),
-    #                                                                  choices = list("Intercept", "Slope", "p.regression", "Rho", "p.correlation"),
-    #                                                                  selected = 1)),
-    #                                 shiny::column(10,
-    #                                               DT::dataTableOutput("tbl.correlationMatrix"))))))),
-    # shinydashboard::tabItem(tabName = "tab_overview",
-    #                         shiny::fluidPage(
-    #                           width = 12,
-    #                           shinydashboard::tabBox(
-    #                             width = 12,
-    #                             title = "Overview",
-    #                             id = "tabsetOverview",
-    #                             shiny::tabPanel("Data",
-    #                                             shiny::fluidPage(
-    #                                               shinydashboard::box(
-    #                                                 width = 12,
-    #                                                 title = "Input",
-    #                                                 status = "primary",
-    #                                                 solidHeader = TRUE,
-    #                                                 collapsible = TRUE,
-    #                                                 shiny::selectInput("si.overviewDataData", label = h5("Data Format"),
-    #                                                                    choices = list("Raw", "Transformed", "Tidy"),
-    #                                                                    selected = 1))),
-    #                                             shiny::hr(),
-    #                                             shiny::fluidPage(
-    #                                               shinydashboard::box(
-    #                                                 width = 12,
-    #                                                 title = "Result",
-    #                                                 status = "primary",
-    #                                                 solidHeader = TRUE,
-    #                                                 collapsible = TRUE,
-    #                                                 DT::dataTableOutput("tbl.overviewData")))),
-    #                             shiny::tabPanel("Frequency",
-    #                                             shiny::fluidPage(
-    #                                               shinydashboard::box(
-    #                                                 width = 12,
-    #                                                 title = "Input",
-    #                                                 status = "primary",
-    #                                                 solidHeader = TRUE,
-    #                                                 collapsible = TRUE,
-    #                                                 shiny::fluidRow(
-    #                                                   shiny::column(6,
-    #                                                                 shiny::selectInput("si.overviewFreqView", label = h5("Presentation Type"),
-    #                                                                                    choices = list("Histogram", "Box Plot"),
-    #                                                                                    selected = 1)),
-    #                                                   shiny::column(6,
-    #                                                                 shiny::selectInput("si.overviewFreqData", label = h5("Data Format"),
-    #                                                                                    choices = list("Raw", "Transformed", "Tidy"),
-    #                                                                                    selected = 1))))),
-    #                                             shiny::hr(),
-    #                                             shiny::fluidPage(
-    #                                               shinydashboard::box(
-    #                                                 width = 12,
-    #                                                 title = "Result",
-    #                                                 status = "primary",
-    #                                                 solidHeader = TRUE,
-    #                                                 collapsible = TRUE,
-    #                                                 plotOutput("plt.overviewFreq", width="100%"),
-    #                                                 style = "overflow-y:scroll; max-height: 600px"))),
-    #                             shiny::tabPanel("Continuous",
-    #                                             shiny::fluidPage(
-    #                                               shinydashboard::box(
-    #                                                 width = 12,
-    #                                                 title = "Input",
-    #                                                 status = "primary",
-    #                                                 solidHeader = TRUE,
-    #                                                 collapsible = TRUE,
-    #                                                 shiny::fluidRow(
-    #                                                   shiny::column(6,
-    #                                                                 shiny::selectInput("si.overviewContView", labe = h5("Abscissae"),
-    #                                                                                    choices = list(),
-    #                                                                                    selected = 1)),
-    #                                                   shiny::column(6,
-    #                                                                 shiny::selectInput("si.overviewContData", labe = h5("Data Format"),
-    #                                                                                    choices = list("Raw", "Transformed", "Tidy"),
-    #                                                                                    selected = 1))))),
-    #                                             shiny::hr(),
-    #                                             shiny::fluidPage(
-    #                                               shinydashboard::box(
-    #                                                 width = 12,
-    #                                                 title = "Result",
-    #                                                 status = "primary",
-    #                                                 solidHeader = TRUE,
-    #                                                 collapsible = TRUE,
-    #                                                 plotOutput("plt.overviewCont", width="100%"),
-    #                                                 style = "overflow-y:scroll; max-height: 600px"))),
-    #                             shiny::tabPanel("Statistics",
-    #                                             shiny::fluidPage(
-    #                                               shinydashboard::box(
-    #                                                 width = 12,
-    #                                                 title = "Input",
-    #                                                 status = "primary",
-    #                                                 solidHeader = TRUE,
-    #                                                 collapsible = TRUE,
-    #                                                 shiny::selectInput("si.overviewStatisticsData", label = h5("Data Format"),
-    #                                                                    choices = list("Raw", "Transformed", "Tidy"),
-    #                                                                    selected = 1))),
-    #                                             shiny::hr(),
-    #                                             shiny::fluidPage(
-    #                                               shinydashboard::box(
-    #                                                 width = 12,
-    #                                                 title = "Result",
-    #                                                 status = "primary",
-    #                                                 solidHeader = TRUE,
-    #                                                 collapsible = TRUE,
-    #                                                 DT::dataTableOutput("tbl.overviewStatistics"))))
-    #                           )
-    #                         )),
-    # shinydashboard::tabItem(tabName = "tab_export",
-    #                         fluidPage(
-    #                           width = 12,
-    #                           shinydashboard::box(
-    #                             width = 12,
-    #                             title = "Download Results",
-    #                             status = "primary",
-    #                             solidHeader = TRUE,
-    #                             collapsible = TRUE,
-    #                               shiny::selectInput("si.exportType", label = h5("Data Set"),
-    #                                                 choices = list(),
-    #                                                 selected = 1),
-    #                               shiny::selectInput("si.exportFormat", label = h5("Format"),
-    #                                                  choices = list(),
-    #                                                  selected = 1),
-    # 
-    #                               downloadButton('db.export', 'Download'))))
 
