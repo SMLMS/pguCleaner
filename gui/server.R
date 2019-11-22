@@ -34,15 +34,20 @@ shinyServer(function(input, output, session) {
   outlierDetected <- shiny::reactiveVal(value = FALSE)
   outlierRevised <- shiny::reactiveVal(value = FALSE)
   dataCorrelated <- shiny::reactiveVal(value = FALSE)
-  ############
-  # dataFrames
-  ############
+  dataRegression <- shiny::reactiveVal(value = FALSE)
+  
+  #############
+  # data Object
+  #############
   rawData <- pgu.data$new()
   filteredData <- pgu.data$new()
   transformedData <- pgu.data$new()
   scaledData <- pgu.data$new()
   cleanedData <- pgu.data$new()
   
+  ######################
+  # manupulating Objects
+  ######################
   inFile <- pgu.file$new()
   outFile <- pgu.file$new()
   importer <- pgu.importer$new()
@@ -1013,47 +1018,82 @@ shinyServer(function(input, output, session) {
   })
   
   
-  ##############################
-  # calculate correlation Matrix
-  ##############################
-  shiny::observeEvent(input$ab.resetRegression,{
+  #######################
+  # calculate correlation
+  #######################
+  shiny::observeEvent(input$ab.correlation,{
+    if(outlierRevised()){
+      progress <- shiny::Progress$new(session, min = 1, max  = 3 * length(cleanedData$numericFeatureNames) ** 2)
+      progress$set(message = "Calculate Correlation", value = 1)
+      on.exit(progress$close())
+      correlator$resetCorrelator(data = cleanedData$rawData, progress = progress)
+      dataCorrelated(TRUE)
+      
+      shiny::updateSelectInput(session, "si.correlationMatrix",
+                               selected = "r")
+      
+      output$tbl.correlationMatrix <- DT::renderDataTable(
+        correlator$printRTbl() %>%
+          format.data.frame(scientific = TRUE, digits = 4) %>%
+          DT::datatable(
+            extensions = 'Buttons',
+            options = list(
+              dom = "Blfrtip",
+              scrollX = TRUE,
+              scrollY = '600px',
+              paging = FALSE,
+              buttons = c('csv')
+            )
+          )
+      )
+    }
+  })
+  
+  shiny::observeEvent(input$si.correlationMatrix,{
     if(dataCorrelated()){
-      shiny::updateSelectInput(session, "si.regressionAbs",
-                               choices = filteredData$numericFeatureNames,
-                               selected = filteredData$numericFeatureNames[1])
-      shiny::updateSelectInput(session, "si.regressionOrd",
-                               choices = filteredData$numericFeatureNames [! filteredData$numericFeatureNames %in% input$si.regressionAbs],
-                               selected = filteredData$numericFeatureNames [! filteredData$numericFeatureNames %in% input$si.regressionAbs][1])
-      shiny::updateSelectInput(session, "si.regressionStats",
-                               selected = "Intercept")
-      shiny::updateSelectInput(session, "si.regressionStats",
-                               selected = "Intercept")
+      output$tbl.correlationMatrix <- DT::renderDataTable(
+        switch (input$si.correlationMatrix,
+                "r" = correlator$printRTbl(),
+                "p.Pearson" = correlator$printPPearsonTbl(),
+                "tau" = correlator$printTauTbl(),
+                "p.Kendall" = correlator$printPKendallTbl(),
+                "rho" = correlator$printRhoTbl(),
+                "p.Spearman" = correlator$printPSpearmanTbl()
+        ) %>% 
+          format.data.frame(scientific = TRUE, digits = 4) %>%
+          DT::datatable(
+            extensions = 'Buttons',
+            options = list(
+              dom = "Blfrtip",
+              scrollX = TRUE,
+              scrollY = '600px',
+              paging = FALSE,
+              buttons = c('csv'))))
     }
   })
   
   shiny::observeEvent(input$ab.regression,{
     if (outlierRevised()){
-      progress <- shiny::Progress$new(session, min = 1, max = length(scaledData$numericFeatureNames)*length(scaledData$numericFeatureNames)*4)
+      progress <- shiny::Progress$new(session, min = 1, max = length(cleanedData$numericFeatureNames)**2)
       progress$set(message = "Calculate Regression", value = 1)
       on.exit(progress$close())
       regressor$resetRegressor(data = cleanedData$rawData, progress = progress)
-      correlator$resetCorrelator(data = cleanedData$rawData, progress = progress)
+      dataRegression(TRUE)
       
       shiny::updateSelectInput(
         session,
         "si.regressionAbs",
-        choices = filteredData$numericFeatureNames,
-        selected = filteredData$numericFeatureNames[1]
+        choices = cleanedData$numericFeatureNames,
+        selected = cleanedData$numericFeatureNames[1]
       )
       shiny::updateSelectInput(
         session,
         "si.regressionOrd",
-        choices = filteredData$numericFeatureNames [!filteredData$numericFeatureNames %in% input$si.regressionAbs],
-        selected = filteredData$numericFeatureNames [!filteredData$numericFeatureNames %in% input$si.regressionAbs][1]
+        choices = cleanedData$numericFeatureNames [!cleanedData$numericFeatureNames %in% input$si.regressionAbs],
+        selected = cleanedData$numericFeatureNames [!cleanedData$numericFeatureNames %in% input$si.regressionAbs][1]
       )
-      dataCorrelated(TRUE)
       
-      shiny::updateSelectInput(session, "si.regressionStats",
+      shiny::updateSelectInput(session, "si.regressionMatrix",
                                selected = "Intercept")
 
       output$tbl.regressionMatrix <- DT::renderDataTable(
@@ -1075,10 +1115,10 @@ shinyServer(function(input, output, session) {
   })
   
   shiny::observeEvent(input$si.regressionAbs,{
-    if(dataCorrelated()){
+    if(dataRegression()){
       shiny::updateSelectInput(session, "si.regressionOrd",
-                               choices = filteredData$numericFeatureNames [! filteredData$numericFeatureNames %in% input$si.regressionAbs],
-                               selected = filteredData$numericFeatureNames [! filteredData$numericFeatureNames %in% input$si.regressionAbs][1])
+                               choices = cleanedData$numericFeatureNames [! cleanedData$numericFeatureNames %in% input$si.regressionAbs],
+                               selected = cleanedData$numericFeatureNames [! cleanedData$numericFeatureNames %in% input$si.regressionAbs][1])
 
       regressor$setAbscissa <- input$si.regressionAbs
       regressor$setOrdinate <- input$si.regressionOrd
@@ -1102,24 +1142,6 @@ shinyServer(function(input, output, session) {
             )
           )
       })
-      
-      correlator$setAbscissa <- input$si.regressionAbs
-      correlator$setOrdinate <- input$si.regressionOrd
-      
-      output$tbl.correlationFeature <- DT::renderDataTable(
-        correlator$printFeature() %>%
-          format.data.frame(scientific = TRUE, digits = 4) %>%
-          DT::datatable(
-            extensions = 'Buttons',
-            options = list(
-              dom = "Blfrtip",
-              scrollX = TRUE,
-              scrollY = TRUE,
-              paging = FALSE,
-              buttons = c('csv')
-            )
-          )
-      )
     }
   })
   
@@ -1147,84 +1169,17 @@ shinyServer(function(input, output, session) {
             )
           )
       })
-      
-      correlator$setAbscissa <- input$si.regressionAbs
-      correlator$setOrdinate <- input$si.regressionOrd
-      
-      output$tbl.correlationFeature <- DT::renderDataTable(
-        correlator$printFeature() %>%
-          format.data.frame(scientific = TRUE, digits = 4) %>%
-          DT::datatable(
-            extensions = 'Buttons',
-            options = list(
-              dom = "Blfrtip",
-              scrollX = TRUE,
-              scrollY = TRUE,
-              paging = FALSE,
-              buttons = c('csv')
-            )
-          ))
     }
   })
   
-  shiny::observeEvent(input$ab.refreshRegression,{
-    if(dataCorrelated()){
-      regressor$setAbscissa <- input$si.regressionAbs
-      regressor$setOrdinate <- input$si.regressionOrd
-      
-      regressor$createFeatureModel(data = cleanedData$rawData)
-      
-      output$plt.regressionFeature <- shiny::renderPlot(
-        regressor$plotResult()
-      )
-      
-      output$tbl.regressionFeature <- DT::renderDataTable({
-        regressor$printModel() %>%
-          format.data.frame(scientific = TRUE, digits = 4) %>%
-          DT::datatable(
-            extensions = 'Buttons',
-            options = list(
-              dom = "Blfrtip",
-              scrollX = TRUE,
-              scrollY = TRUE,
-              paging = FALSE,
-              buttons = c('csv')
-            )
-          )})
-      
-      correlator$setAbscissa <- input$si.regressionAbs
-      correlator$setOrdinate <- input$si.regressionOrd
-      
-      output$tbl.correlationFeature <- DT::renderDataTable(
-        correlator$printFeature() %>%
-          format.data.frame(scientific = TRUE, digits = 4) %>%
-          DT::datatable(
-            extensions = 'Buttons',
-            options = list(
-              dom = "Blfrtip",
-              scrollX = TRUE,
-              scrollY = TRUE,
-              paging = FALSE,
-              buttons = c('csv')
-            )
-          ))
-    }
-  })
-  
-  shiny::observeEvent(input$si.regressionStats,{
-    if(dataCorrelated()){
+  shiny::observeEvent(input$si.regressionMatrix,{
+    if(dataRegression()){
       output$tbl.regressionMatrix <- DT::renderDataTable(
-        switch (input$si.regressionStats,
+        switch (input$si.regressionMatrix,
                 "Intercept" = regressor$printInterceptTbl(),
                 "p.Intercept" = regressor$printPInterceptTbl(),
                 "Slope" = regressor$printSlopeTbl(),
-                "p.Slope" = regressor$printPSlopeTbl(),
-                "r" = correlator$printRTbl(),
-                "p.Pearson" = correlator$printPPearsonTbl(),
-                "tau" = correlator$printTauTbl(),
-                "p.Kendall" = correlator$printPKendallTbl(),
-                "rho" = correlator$printRhoTbl(),
-                "p.Spearman" = correlator$printPSpearmanTbl()
+                "p.Slope" = regressor$printPSlopeTbl()
                 ) %>% 
           format.data.frame(scientific = TRUE, digits = 4) %>%
           DT::datatable(
@@ -1232,7 +1187,7 @@ shinyServer(function(input, output, session) {
             options = list(
               dom = "Blfrtip",
               scrollX = TRUE,
-              scrollY = '350px',
+              scrollY = '600px',
               paging = FALSE,
               buttons = c('csv'))))
     }
@@ -1489,22 +1444,32 @@ shinyServer(function(input, output, session) {
         
       }
     }
+    if(input$menue == "tab_correlation"){
+      if(!outlierRevised()){
+        output$tbl.correlationMatrix <- DT::renderDataTable(NULL)
+        errorMessage <- sprintf("No Cleaned data set.")
+        shiny::showNotification(paste(errorMessage),type = "error", duration = 10)
+      }
+      else if (!dataCorrelated()){
+        output$tbl.correlationMatrix <- DT::renderDataTable(NULL)
+        errorMessage <- sprintf("So far, no correlation analysis has been performed for the currently selected data set.")
+        shiny::showNotification(paste(errorMessage),type = "error", duration = 10)
+      }
+    }
     if(input$menue == "tab_regression"){
       if(!outlierRevised()){
         output$plt.regressionFeature <- shiny::renderPlot(NULL)
         output$tbl.regressionFeature <- DT::renderDataTable(NULL)
-        output$tbl.correlationFeature <- DT::renderDataTable(NULL)
         output$tbl.regressionMatrix <- DT::renderDataTable(NULL)
         errorMessage <- sprintf("No Cleaned data set.")
         shiny::showNotification(paste(errorMessage),type = "error", duration = 10)
 
       }
-      else if (!dataCorrelated()){
+      else if (!dataRegression()){
         output$plt.regressionFeature <- shiny::renderPlot(NULL)
         output$tbl.regressionFeature <- DT::renderDataTable(NULL)
-        output$tbl.correlationFeature <- DT::renderDataTable(NULL)
         output$tbl.regressionMatrix <- DT::renderDataTable(NULL)
-        errorMessage <- sprintf("So far, no correlation analysis has been performed for the currently selected data set.")
+        errorMessage <- sprintf("So far, no regression analysis has been performed for the currently selected data set.")
         shiny::showNotification(paste(errorMessage),type = "error", duration = 10)
       }
     }
@@ -1514,18 +1479,26 @@ shinyServer(function(input, output, session) {
         shiny::showNotification(paste(errorMessage), type = "error", duration = 10)
       }
       else{
-        outFile$setBaseName <- inFile$baseName
+        exporter$updateExportTypeAlphabet(dataLoaded = dataLoaded(),
+                                         modelOptimized = modelOptimized(),
+                                         modelDefined = modelDefined(),
+                                         nanCleaned = nanCleaned(),
+                                         outlierDetected = outlierDetected(),
+                                         outlierRevised = outlierRevised(),
+                                         dataCorrelated = dataCorrelated(),
+                                         dataRegression = dataRegression())
+        # outFile$setBaseName <- inFile$baseName
         shiny::updateSelectInput(session, "si.exportType",
                                  choices = exporter$exportTypeAlphabet,
                                  selected = exporter$exportTypeAlphabet[1])
         shiny::updateSelectInput(session, "si.suffix",
                                  choices = exporter$reducedSuffixAlphabet,
                                  selected = exporter$reducedSuffixAlphabet[1])
-        outFile$setExportType <- input$si.exportType
-        outFile$setSuffix <- input$si.suffix
-        outFile$updateTimeString()
-        outFile$mergeFileName()
-        exporter$setExportType <- input$si.exportType
+        # outFile$setExportType <- input$si.exportType
+        # outFile$setSuffix <- input$si.suffix
+        # outFile$updateTimeString()
+        # outFile$mergeFileName()
+        # exporter$setExportType <- input$si.exportType
       }
     }
   })

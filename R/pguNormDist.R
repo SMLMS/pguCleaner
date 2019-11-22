@@ -189,6 +189,7 @@ pgu.normDist$set("public", "resetFail", function(){
   private$.p.kolmogorow <- NA
   private$.a.anderson <- NA
   private$.p.anderson <- NA
+  private$.fitSuccess <- FALSE
 })
 
 ###################
@@ -200,9 +201,10 @@ pgu.normDist$set("public", "optimize", function(){
   fit<-tryCatch({
     bbmle::mle2(x ~ dLogLikelihood(mu=mu, sigma=sigma), start = list(mu=estMu, sigma=estSigma), data=self$rawData)
   },
-  error = function(cond) {
+  error = function(e) {
     self$resetFail()
-    stop("Warning in pgu.normDist during maximum likelihood optimization: %s.", cond)
+    errorMesage <- sprintf("\nWarning in pgu.normDist during maximum likelihood optimization:\n%s", e)
+    cat(errorMesage)
     return(NA)
   })
   if(isS4(fit)){

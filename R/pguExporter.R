@@ -76,21 +76,8 @@ pgu.exporter <- R6::R6Class("pgu.exporter",
                           initialize = function(name = "character") {
                             private$.suffixAlphabet <- c("csv","h5", "xlsx")
                             private$.reducedSuffixAlphabet <- c("csv", "xlsx")
-                            private$.exportTypeAlphabet <- c("Filtered",
-                                                             "Transformed", 
-                                                             "Scaled",
-                                                             "Revised",
-                                                             "Transformation",
-                                                             "Model",
-                                                             "Missings",
-                                                             "Missing-Statistics",
-                                                             "Outliers",
-                                                             "Outlier-Statistics",
-                                                             
-                                                             "Regression",
-                                                             "Correlation",
-                                                             "Complete")
-                            self$setExportType <- "Filtered"
+                            self$updateExportTypeAlphabet()
+                            # self$setExportType <- "Filtered"
                             private$.naChar <- "NA"
                           },
                           finalize = function() {
@@ -116,10 +103,55 @@ pgu.exporter <- R6::R6Class("pgu.exporter",
 ####################
 # public functions
 ####################
+pgu.exporter$set("public", "updateExportTypeAlphabet", function(dataLoaded = FALSE,
+                                                                modelOptimized = FALSE,
+                                                                modelDefined = FALSE,
+                                                                nanCleaned = FALSE,
+                                                                outlierDetected = FALSE,
+                                                                outlierRevised = FALSE,
+                                                                dataCorrelated = FALSE,
+                                                                dataRegression = FALSE){
+  alphabet <- character(0)
+  if(dataLoaded){
+    alphabet <- c(alphabet, "Complete", "Filtered Data", "Filtered Statistics")
+  }
+  if(modelOptimized){
+    alphabet <- c(alphabet, "Optimal Transformations", "Optimized Transformation Parameters")
+  }
+  if(modelDefined){
+    alphabet <- c(alphabet , "Transformation Parameter", "Model Parameter", "Model Quality", "Model Test")
+  }
+  if(nanCleaned){
+    alphabet <- c(alphabet, "NA Statistics", "NA Details", "NA Cleaned Data")
+  }
+  if(outlierDetected){
+    alphabet <- c(alphabet, "Outlier Statistics", "Outlier Details")
+  }
+  if(outlierRevised){
+    alphabet <- c(alphabet, "Outlier Corrected Data")
+  }
+  if(dataCorrelated){
+    alphabet <- c(alphabet,
+                  "Pearson's R",
+                  "Pearson's P",
+                  "Kendall's Tau",
+                  "Kendall's P",
+                  "Spearman's Rho",
+                  "Spearman's P")
+  }
+  if(dataRegression){
+    alphabet <- c(alphabet,
+                  "Intercept",
+                  "Intercept P",
+                  "Slope",
+                  "Slope P")
+  }
+  private$.exportTypeAlphabet <- alphabet
+})
+
 pgu.exporter$set("public", "extractSuffix", function(){
   self$setSuffix <- tools::file_ext(self$outFileName)
 })
-
 
 #################
 # write functions

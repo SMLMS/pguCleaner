@@ -32,6 +32,8 @@ pgu.optimizer <- R6::R6Class("pgu.optimizer",
                                 },
                                 setMirror = function(data = "logical"){
                                   private$.mirror <- data
+                                  self$resetOptParameter()
+                                  self$resetOptTypes()
                                 },
                                 optParameter = function(){
                                   return(private$.optParameter)
@@ -82,9 +84,30 @@ pgu.optimizer$set("public", "resetFeatures", function(data = "tbl_df"){
     colnames()
 })
 
-pgu.optimizer$set("public", "resetOptParameter", function(data = "tbl_df"){
-  features <- append(self$features,self$features)
-  mirrorLogic <- append(c(rep(FALSE, length(self$features))),  c(rep(TRUE, length(self$features))))
+# pgu.optimizer$set("public", "resetOptParameter", function(data = "tbl_df"){
+#   features <- append(self$features,self$features)
+#   mirrorLogic <- append(c(rep(FALSE, length(self$features))),  c(rep(TRUE, length(self$features))))
+#   logLikelihood <- as.numeric(c(rep(NA, length(features))))
+#   bic <- as.numeric(c(rep(NA, length(features))))
+#   aic <- as.numeric(c(rep(NA, length(features))))
+#   aicc <- as.numeric(c(rep(NA, length(features))))
+#   rmse <- as.numeric(c(rep(NA, length(features))))
+#   w.shapiro <- as.numeric(c(rep(NA, length(features))))
+#   p.shapiro <- as.numeric(c(rep(NA, length(features))))
+#   d.kolmogorow <- as.numeric(c(rep(NA, length(features))))
+#   p.kolmogorow <- as.numeric(c(rep(NA, length(features))))
+#   a.anderson <- as.numeric(c(rep(NA, length(features))))
+#   p.anderson <- as.numeric(c(rep(NA, length(features))))
+#   private$.optParameter <- tibble::tibble(features, mirrorLogic, logLikelihood, bic, aic, aicc, rmse,
+#                                           w.shapiro, p.shapiro, d.kolmogorow, p.kolmogorow, a.anderson, p.anderson)
+# })
+pgu.optimizer$set("public", "resetOptParameter", function(){
+  features <- self$features
+  mirrorLogic <- c(rep(FALSE, length(features)))
+  if(self$mirror){
+    features <- append(features, features)
+    mirrorLogic <- append(mirrorLogic, c(rep(TRUE, length(self$features))))
+  }
   logLikelihood <- as.numeric(c(rep(NA, length(features))))
   bic <- as.numeric(c(rep(NA, length(features))))
   aic <- as.numeric(c(rep(NA, length(features))))
@@ -100,9 +123,30 @@ pgu.optimizer$set("public", "resetOptParameter", function(data = "tbl_df"){
                                           w.shapiro, p.shapiro, d.kolmogorow, p.kolmogorow, a.anderson, p.anderson)
 })
 
-pgu.optimizer$set("public", "resetOptTypes", function(data = "tbl_df"){
-  features <- append(self$features,self$features)
-  mirrorLogic <- append(c(rep(FALSE, length(self$features))),  c(rep(TRUE, length(self$features))))
+# pgu.optimizer$set("public", "resetOptTypes", function(data = "tbl_df"){
+#   features <- append(self$features,self$features)
+#   mirrorLogic <- append(c(rep(FALSE, length(self$features))),  c(rep(TRUE, length(self$features))))
+#   logLikelihood <- c(rep("none", length(features)))
+#   bic <- c(rep("none", length(features)))
+#   aic <- c(rep("none", length(features)))
+#   aicc <- c(rep("none", length(features)))
+#   rmse <- c(rep("none", length(features)))
+#   w.shapiro <- c(rep("none", length(features)))
+#   p.shapiro <- c(rep("none", length(features)))
+#   d.kolmogorow <- c(rep("none", length(features)))
+#   p.kolmogorow <- c(rep("none", length(features)))
+#   a.anderson <- c(rep("none", length(features)))
+#   p.anderson <- c(rep("none", length(features)))
+#   private$.optTypes <- tibble::tibble(features, mirrorLogic, logLikelihood, bic, aic, aicc, rmse,
+#                                       w.shapiro, p.shapiro, d.kolmogorow, p.kolmogorow, a.anderson, p.anderson)
+# })
+pgu.optimizer$set("public", "resetOptTypes", function(){
+  features <- self$features
+  mirrorLogic <- c(rep(FALSE, length(features)))
+  if(self$mirror){
+    features <- append(features, features)
+    mirrorLogic <- append(mirrorLogic, c(rep(TRUE, length(self$features))))
+  }
   logLikelihood <- c(rep("none", length(features)))
   bic <- c(rep("none", length(features)))
   aic <- c(rep("none", length(features)))
@@ -122,8 +166,8 @@ pgu.optimizer$set("public", "resetOptimizer", function(data = "tbl_df"){
   self$resetFeatures(data)
   self$setTrafoAlphabet <- c("none", "log2", "logNorm", "log10", "squareRoot", "cubeRoot", "arcsine", "inverse")
   self$setMirror <- FALSE
-  self$resetOptParameter(data)
-  self$resetOptTypes(data)
+  self$resetOptParameter()
+  self$resetOptTypes()
 })
 ##################
 # helper functions
@@ -206,7 +250,7 @@ pgu.optimizer$set("public", "updateOptParameter", function(model = "pgu.model", 
   private$.optParameter <- referenceParameter %>%
     tidyr::separate(features, into = c("features", "mirrorLogic"), sep="/") %>%
     dplyr::mutate(mirrorLogic = as.logical(mirrorLogic))
-  
+
   private$.optTypes <- referenceTypes %>%
     tidyr::separate(features, into = c("features", "mirrorLogic"), sep="/")
 })
@@ -219,6 +263,7 @@ pgu.optimizer$set("public", "optimize", function(data  = "tbl_df", progress = "P
   mirrorLogic <- c(FALSE)
   if (self$mirror){
     mirrorLogic <- c(mirrorLogic, TRUE)
+    
   }
   for (logic in mirrorLogic){
     transformator <- self$updateMirrorLogic(transformator, logic)

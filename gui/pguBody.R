@@ -552,99 +552,163 @@ body <- shinydashboard::dashboardBody(shinydashboard::tabItems(
                                     )
                                   )))
                             ))),
+  shinydashboard::tabItem(tabName = "tab_correlation",
+                          shiny::fluidPage(width = 12,
+                                           id = "tabsetCorrelation",
+                                           shiny::fluidRow(
+                                             shiny::column(
+                                               width = 3,
+                                               height = "800px",
+                                               shinydashboard::box(
+                                                 width = 12,
+                                                 height = "800px",
+                                                 title = "Menue",
+                                                 status = "primary",
+                                                 solidHeader = TRUE,
+                                                 shiny::fluidPage(width = 12,
+                                                                  height = "400px",
+                                                                  shiny::selectInput(
+                                                                    inputId = "si.correlationMatrix",
+                                                                    width = "100%",
+                                                                    label = h5("Statistics"),
+                                                                    choices = list("r", "p.Pearson",
+                                                                                   "tau", "p.Kendall",
+                                                                                   "rho", "p.Spearman"),
+                                                                    selected = 1
+                                                                  )
+                                                 ),
+                                                 shiny::hr(),
+                                                 shiny::fluidPage(width = 12,
+                                                                  height = "400px",
+                                                                  shiny::actionButton(
+                                                                    inputId = "ab.correlation",
+                                                                    label = "calculate",
+                                                                    width = "100%")
+                                                                  )
+                                               )
+                                             ),
+                                             shiny::column(
+                                               width = 9,
+                                               height = "800px",
+                                               shinydashboard::box(
+                                                 width = 12,
+                                                 height = "800px",
+                                                 title = "Correlation",
+                                                 status = "primary",
+                                                 solidHeader = TRUE,
+                                                 shiny::fluidPage(
+                                                   width = 12,
+                                                   height = "800px",
+                                                   DT::dataTableOutput("tbl.correlationMatrix")
+                                                 )
+                                               )
+                                             )
+                                           )
+                                           )
+                          ),
   shinydashboard::tabItem(tabName = "tab_regression",
                           shiny::fluidPage(
                             width = 12,
                             title = "Regression",
-                            id = "tabsetCorrelation",
+                            id = "tabsetRegression",
                             shiny::fluidRow(
                               shiny::column(
                                 width = 3,
                                 shinydashboard::box(
                                   width = 12,
-                                  height = "575px",
+                                  height = "800px",
                                   title = "Menue",
                                   status = "primary",
                                   solidHeader = TRUE,
-                                  shiny::selectInput(
-                                    "si.regressionAbs",
-                                    width = "100%",
-                                    label = h5("Abscissae"),
-                                    choices = list(),
-                                    selected = 1
-                                  ),
-                                  shiny::selectInput(
-                                    "si.regressionOrd",
-                                    width = "100%",
-                                    label = h5("Ordinate"),
-                                    choices = list(),
-                                    selected = 1
-                                  ),
-                                  shiny::selectInput(
-                                    "si.regressionStats",
-                                    width = "100%",
-                                    label = h5("Statistics"),
-                                    choices = list("Intercept", "p.Intercept",
-                                                   "Slope", "p.Slope",
-                                                   "r", "p.Pearson",
-                                                   "tau", "p.Kendall",
-                                                   "rho", "p.Spearman"),
-                                    selected = 1
+                                  shiny::fluidPage(
+                                    width = 12,
+                                    height = "400px",
+                                    shiny::selectInput(
+                                      "si.regressionAbs",
+                                      width = "100%",
+                                      label = h5("Abscissae"),
+                                      choices = list(),
+                                      selected = 1
+                                    ),
+                                    shiny::selectInput(
+                                      "si.regressionOrd",
+                                      width = "100%",
+                                      label = h5("Ordinate"),
+                                      choices = list(),
+                                      selected = 1
+                                    ),
+                                    shiny::selectInput(
+                                      "si.regressionMatrix",
+                                      width = "100%",
+                                      label = h5("Statistics"),
+                                      choices = list("Intercept", "p.Intercept",
+                                                     "Slope", "p.Slope"),
+                                      selected = 1
+                                    )
                                   ),
                                   shiny::hr(),
-                                  shiny::actionButton(
-                                    inputId = "ab.regression",
-                                    label = "calculate",
-                                    width = "100%"
-                                  ),
-                                  shiny::actionButton(
-                                    inputId = "ab.refreshRegression",
-                                    label = "refresh",
-                                    width = "100%"
-                                  ),
-                                  shiny::actionButton(
-                                    inputId = "ab.resetRegression",
-                                    label = "reset",
-                                    width = "100%"
+                                  shiny::fluidPage(
+                                    width = 12,
+                                    height = "400px",
+                                    shiny::actionButton(
+                                      inputId = "ab.regression",
+                                      label = "calculate",
+                                      width = "100%"
+                                    )
                                   )
                                 )
                               ),
                               shiny::column(
                                 width = 9,
-                            shinydashboard::box(
-                              width = 12,
-                              title = "Linear Regression",
-                              status = "primary",
-                              solidHeader = TRUE,
-                              collapsible = TRUE,
-                              plotOutput("plt.regressionFeature"),
-                              shiny::hr(),
-                              shiny::fluidRow(
-                                shiny::column(
-                                  width = 6,
-                                  shiny::fluidPage(
-                                    DT::dataTableOutput("tbl.regressionFeature")
-                                  )
-                                ),
-                                shiny::column(
-                                  width = 6,
-                                  shiny::fluidPage(
-                                    DT::dataTableOutput("tbl.correlationFeature")
+                                shinydashboard::box(
+                                  width = 12,
+                                  height = "800px",
+                                  title = "Regression",
+                                  status = "primary",
+                                  solidHeader = TRUE,
+                                  shinydashboard::tabBox(
+                                    width = 12,
+                                    id = "tabsetRegression",
+                                    height = "700px",
+                                    shiny::tabPanel(
+                                      width = 12,
+                                      height = "700px",
+                                      title = "Feature",
+                                      shiny::fluidRow(
+                                        shiny::column(
+                                          width = 8,
+                                          shiny::fluidPage(
+                                            width = 12,
+                                            height = "700px",
+                                            plotOutput("plt.regressionFeature")
+                                          )
+                                        ),
+                                        shiny::column(
+                                          width  = 4,
+                                          shiny::fluidPage(
+                                            width = 12,
+                                            height = "700px",
+                                            DT::dataTableOutput("tbl.regressionFeature")
+                                          )
+                                        )
+                                    )
+                                    ),
+                                    shiny::tabPanel(
+                                      width = 12,
+                                      height = "700px",
+                                      title = "Statistics",
+                                      shiny::fluidPage(
+                                        width = 12,
+                                        height = "700px",
+                                        DT::dataTableOutput("tbl.regressionMatrix")
+                                      )
+                                    )
+                                    )
                                   )
                                 )
                               )
-                            ),
-                            shinydashboard::box(
-                              width = 12,
-                              title = "Statistics",
-                              status = "primary",
-                              solidHeader = TRUE,
-                              collapsible = TRUE,
-                              DT::dataTableOutput("tbl.regressionMatrix"))
-                              )
-      )
-    )
-  ),
+                            )
+                          ),
   shinydashboard::tabItem(tabName = "tab_export",
                           fluidPage(
                             width = 12,
