@@ -11,7 +11,9 @@ source(file = "../R/pguFile.R", local=TRUE)
 source(file = "../R/pguImporter.R", local=TRUE)
 source(file = "../R/pguData.R", local=TRUE)
 source(file = "../R/pguFilter.R", local=TRUE)
+source(file = "../R/pguMetadata.R", local=TRUE)
 source(file = "../R/pguPlot.R", local=TRUE)
+source(file = "../R/pguLimitsOfQuantification.R", local=TRUE)
 source(file = "../R/pguTransformator.R", local=TRUE)
 source(file = "../R/pguModel.R", local=TRUE)
 source(file = "../R/pguNormDist.R", local=TRUE)
@@ -27,7 +29,11 @@ shinyServer(function(input, output, session) {
   ######################
   # init reactive values
   ######################
+  dataUploaded <- shiny::reactiveVal(value = FALSE)
   dataLoaded <- shiny::reactiveVal(value = FALSE)
+  loqLoaded <- shiny::reactiveVal(value = FALSE)
+  loqOutlierDetected <- shiny::reactiveVal(value = FALSE)
+  loqOutlierRevised <- shiny::reactiveVal(value = FALSE)
   modelOptimized <- shiny::reactiveVal(value = FALSE)
   modelDefined <- shiny::reactiveVal(value = FALSE)
   nanCleaned <- shiny::reactiveVal(value = FALSE)
@@ -41,6 +47,7 @@ shinyServer(function(input, output, session) {
   #############
   rawData <- pgu.data$new()
   filteredData <- pgu.data$new()
+  loqData <- pgu.data$new()
   transformedData <- pgu.data$new()
   scaledData <- pgu.data$new()
   cleanedData <- pgu.data$new()
@@ -49,10 +56,13 @@ shinyServer(function(input, output, session) {
   # manupulating Objects
   ######################
   inFile <- pgu.file$new()
+  loqFile <- pgu.file$new()
   outFile <- pgu.file$new()
   importer <- pgu.importer$new()
   filterSet <- pgu.filter$new()
+  metadata <- pgu.metadata$new()
   plt <- pgu.plot$new()
+  loq <- pgu.limitsOfQuantification$new()
   transformator <- pgu.transformator$new()
   model <- pgu.model$new()
   featureModel <- pgu.normDist$new()
@@ -65,58 +75,117 @@ shinyServer(function(input, output, session) {
   
   
   ###############
-  # import button
+  # browse button
   ###############
-  shiny::observeEvent(input$ab.import,{
-    modelOptimized(FALSE)
+  shiny::observeEvent(input$fi.import,{
     if (length(input$fi.import$datapath) > 0){
+      loqLoaded(FALSE)
+      loqOutlierDetected(FALSE)
+      loqOutlierRevised(FALSE)
+      modelOptimized(FALSE)
+      modelDefined(FALSE)
+      nanCleaned(FALSE)
+      outlierDetected(FALSE)
+      outlierRevised(FALSE)
+      dataCorrelated(FALSE)
+      dataRegression(FALSE)
       inFile$setUploadFileName <- input$fi.import$datapath
       inFile$setFileName <- input$fi.import$name
       inFile$splitFileName()
+      loqFile$setUploadFileName <- input$fi.import$datapath
+      loqFile$setFileName <- input$fi.import$name
+      loqFile$splitFileName()
+      switch(inFile$suffix,
+             csv = {updateTabsetPanel(session, "tabsetImport",
+                                      selected = "CSV")},
+             xls = {updateTabsetPanel(session, "tabsetImport",
+                                      selected = "Excel")},
+             xlsx = {updateTabsetPanel(session, "tabsetImport",
+                                       selected = "Excel")},
+             h5 = {updateTabsetPanel(session, "tabsetImport",
+                                     selected = "HDF")}
+      )
+      dataUploaded(TRUE)
+    }
+    else{
+      dataUploaded(FALSE)
+      shiny::showNotification(paste("Please select a valid file."),type = "error", duration = 10)
+    }
+  })
+  
+  ###############
+  # import button
+  ###############
+  shiny::observeEvent(input$ab.import,{
+    dataLoaded(FALSE)
+    loqLoaded(FALSE)
+    loqOutlierDetected(FALSE)
+    loqOutlierRevised(FALSE)
+    modelOptimized(FALSE)
+    modelDefined(FALSE)
+    nanCleaned(FALSE)
+    outlierDetected(FALSE)
+    outlierRevised(FALSE)
+    dataCorrelated(FALSE)
+    dataRegression(FALSE)
+    if (dataUploaded()){
       inFile$setSheetIndex <- input$ni.import
       inFile$setSkipRows <- input$ni.skipRows
       inFile$setSeparator <-input$rb.separator
       inFile$setHeader <- input$cb.header
+      loqFile$setSheetIndex <- input$ni.loqSheetIndex
+      loqFile$setSkipRows <- input$ni.skipRows
+      loqFile$setSeparator <-input$rb.separator
+      loqFile$setHeader <- input$cb.header
       outFile$setBaseName <- inFile$baseName
-    }
-    else{
-      dataLoaded(FALSE)
-      shiny::showNotification(paste("Please select a valid file."),type = "error", duration = 10)
-    }
-    if(importer$suffixIsKnown(obj = inFile)){
-      dataLoaded(TRUE)
-    }
-    else{
-      dataLoaded(FALSE)
-      errorMessage <- sprintf("File extension %s is not known.", inFile$suffix)
-      shiny::showNotification(paste(errorMessage),type = "error", duration = 10)
-    }
-    if(dataLoaded()){
-      tryCatch({
-        rawData$setRawData <- importer$import(obj = inFile)
+      if(importer$suffixIsKnown(obj = inFile)){
+        tryCatch({
+          rawData$setRawData <- importer$import(obj = inFile)
+          dataLoaded(TRUE)
+        },
+        error = function(e) {
+          dataLoaded(FALSE)
+          shiny::showNotification(paste(e),type = "error", duration = 10)
+        },
+        warning = function(w) {
+          dataLoaded(FALSE)
+          shiny::showNotification(paste(w),type = "error", duration = 10)
+        }
+        )
         dataLoaded(TRUE)
-        modelOptimized(FALSE)
-        modelDefined(FALSE)
-        nanCleaned(FALSE)
-        outlierDetected(FALSE)
-      },
-      error = function(e) {
-        dataLoaded(FALSE)
-        shiny::showNotification(paste(e),type = "error", duration = 10)
-      },
-      warning = function(w) {
-        dataLoaded(FALSE)
-        shiny::showNotification(paste(w),type = "error", duration = 10)
       }
-      )
+      else{
+        dataLoaded(FALSE)
+        errorMessage <- sprintf("File extension %s is not known.", inFile$suffix)
+        shiny::showNotification(paste(errorMessage),type = "error", duration = 10)
+      }
+      if((loqFile$suffix != "csv") && (input$cb.loqSheetLogical)){
+        tryCatch({
+          loq$setLoq <- importer$import(obj = loqFile)
+          loqLoaded(TRUE)
+        },
+        error = function(e) {
+          loqLoaded(FALSE)
+          shiny::showNotification(paste(e),type = "error", duration = 10)
+        },
+        warning = function(w) {
+          loqLoaded(FALSE)
+          shiny::showNotification(paste(w),type = "error", duration = 10)
+        }
+        )
+      }
+      if(loqLoaded()){print(loq)}
     }
+    
     # update Class Instances
     if(dataLoaded()){
       filterSet$resetFilter(data = rawData$rawData)
       filteredData$setRawData <- rawData$rawData %>%
         filterSet$filter()
+      filteredData$featureNames %>%
+        metadata$resetMetadata()
     }
-    # update output modules
+    # update filter output modules
     if(dataLoaded()){
       output$tbl.dataInfo <- DT::renderDataTable({rawData$dataInformation() %>%
           DT::datatable(options = list(
@@ -164,7 +233,25 @@ shinyServer(function(input, output, session) {
     else{
       output$tbl.dataInfo <- DT::renderDataTable(NULL)
       output$tbl.rawDataStatistics <- DT::renderDataTable(NULL)
-      
+    }
+    # update metadata output modules
+    if(dataLoaded()){
+      output$tbl.metadata <- DT::renderDataTable(
+        filteredData$rawData,
+        selection = list(target = "column"),
+        rownames = FALSE,
+        options = list(
+          scrollX = TRUE,
+          scrollY = '350px',
+          paging = FALSE,
+          autoWidth = FALSE,
+          columnDefs = list(list(width = '75px', targets = "_all"))
+        ),
+        filter = "top"
+      )
+    }
+    else{
+      output$tbl.metadata - DT::renderDataTable(NULL)
     }
   })
   ###################
@@ -172,10 +259,26 @@ shinyServer(function(input, output, session) {
   ###################
   shiny::observeEvent(input$ab.filterSet,{
     if(dataLoaded()){
+      # loqOutlierDetected <- shiny::reactiveVal(value = FALSE)
+      # loqOutlierRevised <- shiny::reactiveVal(value = FALSE)
+      # modelOptimized <- shiny::reactiveVal(value = FALSE)
+      # modelDefined <- shiny::reactiveVal(value = FALSE)
+      # nanCleaned <- shiny::reactiveVal(value = FALSE)
+      # outlierDetected <- shiny::reactiveVal(value = FALSE)
+      # outlierRevised <- shiny::reactiveVal(value = FALSE)
+      # dataCorrelated <- shiny::reactiveVal(value = FALSE)
+      # dataRegression <- shiny::reactiveVal(value = FALSE)
+      
+      loqOutlierDetected(FALSE)
+      loqOutlierRevised(FALSE)
       modelOptimized(FALSE)
       modelDefined(FALSE)
       nanCleaned(FALSE)
       outlierDetected(FALSE)
+      outlierRevised(FALSE)
+      dataCorrelated(FALSE)
+      dataRegression(FALSE)
+      
       if (length(input$tbl.filterData_rows_all) < 1) {
         filterSet$resetRowIdx(data = rawData$rawData)
       }
@@ -190,6 +293,8 @@ shinyServer(function(input, output, session) {
       }
       filteredData$setRawData <- rawData$rawData %>%
         filterSet$filter()
+      filteredData$featureNames %>%
+        metadata$resetMetadata()
       # updata output
       output$tbl.filterStatistics <- DT::renderDataTable({filteredData$reducedDataStatistics() %>%
           format.data.frame(scientific = TRUE, digits = 4) %>%
@@ -205,6 +310,20 @@ shinyServer(function(input, output, session) {
             scrollY = '14vh',
             #scrollY = TRUE,
             paging = FALSE))})
+      output$tbl.metadata <- DT::renderDataTable(
+        filteredData$rawData,
+        selection = list(target = "column"),
+        rownames = FALSE,
+        options = list(
+          scrollX = TRUE,
+          scrollY = '350px',
+          paging = FALSE,
+          autoWidth = FALSE,
+          columnDefs = list(list(width = '75px', targets = "_all"))
+        ),
+        filter = "top"
+      )
+      
       
     }
     else{
@@ -213,6 +332,7 @@ shinyServer(function(input, output, session) {
       output$tbl.filterStatistics <- DT::renderDataTable(NULL)
       output$tbl.filterMissings <- DT::renderDataTable(NULL)
       output$tbl.filterData <- DT::renderDataTable(NULL)
+      output$tbl.metadata - DT::renderDataTable(NULL)
     }
   })
   ###########################
@@ -220,10 +340,16 @@ shinyServer(function(input, output, session) {
   ###########################
   shiny::observeEvent(input$ab.filterInvSet,{
     if(dataLoaded()){
+      loqOutlierDetected(FALSE)
+      loqOutlierRevised(FALSE)
       modelOptimized(FALSE)
       modelDefined(FALSE)
       nanCleaned(FALSE)
       outlierDetected(FALSE)
+      outlierRevised(FALSE)
+      dataCorrelated(FALSE)
+      dataRegression(FALSE)
+
       if (length(input$tbl.filterData_rows_all) < 1) {
         filterSet$resetRowIdx(data = rawData$rawData)
       }
@@ -240,6 +366,8 @@ shinyServer(function(input, output, session) {
       }
       filteredData$setRawData <- rawData$rawData %>%
         filterSet$filter()
+      filteredData$featureNames %>%
+        metadata$resetMetadata()
       # update output
       output$tbl.filterStatistics <- DT::renderDataTable({filteredData$reducedDataStatistics() %>%
           format.data.frame(scientific = TRUE, digits = 4) %>%
@@ -255,6 +383,19 @@ shinyServer(function(input, output, session) {
             scrollY = '14vh',
             #scrollY = TRUE,
             paging = FALSE))})
+      output$tbl.metadata <- DT::renderDataTable(
+        filteredData$rawData,
+        selection = list(target = "column"),
+        rownames = FALSE,
+        options = list(
+          scrollX = TRUE,
+          scrollY = '350px',
+          paging = FALSE,
+          autoWidth = FALSE,
+          columnDefs = list(list(width = '75px', targets = "_all"))
+        ),
+        filter = "top"
+      )
       
     }
     else{
@@ -263,6 +404,7 @@ shinyServer(function(input, output, session) {
       output$tbl.filterStatistics <- DT::renderDataTable(NULL)
       output$tbl.filterMissings <- DT::renderDataTable(NULL)
       output$tbl.filterData <- DT::renderDataTable(NULL)
+      output$tbl.metadata - DT::renderDataTable(NULL)
     }
   }) 
   #####################
@@ -283,6 +425,13 @@ shinyServer(function(input, output, session) {
         ),
         filter = "top"
       )
+      filterSet$resetRowIdx(data = rawData$rawData)
+      filterSet$resetColIdx(data = rawData$rawData)
+      filteredData$setRawData <- rawData$rawData %>%
+        filterSet$filter()
+      filteredData$featureNames %>%
+        metadata$resetMetadata()
+      
       output$tbl.filterStatistics <- DT::renderDataTable({rawData$dataStatistics() %>%
           format.data.frame(scientific = TRUE, digits = 4) %>%
           DT::datatable(options = list(
@@ -297,6 +446,19 @@ shinyServer(function(input, output, session) {
             scrollY = '14vh',
             #scrollY = TRUE,
             paging = FALSE))})
+      output$tbl.metadata <- DT::renderDataTable(
+        filteredData$rawData,
+        selection = list(target = "column"),
+        rownames = FALSE,
+        options = list(
+          scrollX = TRUE,
+          scrollY = '14vh',
+          paging = FALSE,
+          autoWidth = FALSE,
+          columnDefs = list(list(width = '75px', targets = "_all"))
+        ),
+        filter = "top"
+      )
     }
     else{
       errorMessage <- sprintf("No data loaded.", inFile$suffix)
@@ -304,6 +466,53 @@ shinyServer(function(input, output, session) {
       output$tbl.filterStatistics <- DT::renderDataTable(NULL)
       output$tbl.filterMissings <- DT::renderDataTable(NULL)
       output$tbl.filterData <- DT::renderDataTable(NULL)
+      output$tbl.metadata - DT::renderDataTable(NULL)
+    }
+  })
+  
+  #####################
+  # Metadata definition
+  #####################
+  shiny::observeEvent(input$ab.setMetadata, {
+    if(dataLoaded()){
+      if (length(input$tbl.metadata_columns_selected) < 1) {
+        filteredData$featureNames %>%
+          metadata$resetMetadata()
+      }
+      else{
+        filteredData$featureNames[input$tbl.metadata_columns_selected + 1] %>%
+          metadata$defineMetadata()
+      }
+    }
+    else{
+      errorMessage <- sprintf("No data loaded.", inFile$suffix)
+      shiny::showNotification(paste(errorMessage),type = "error", duration = 10)
+      output$tbl.metadata - DT::renderDataTable(NULL)
+    }
+  })
+  
+  shiny::observeEvent(input$ab.resetMetadata, {
+    if(dataLoaded()){
+      output$tbl.metadata <- DT::renderDataTable(
+        filteredData$rawData,
+        selection = list(target = "column"),
+        rownames = FALSE,
+        options = list(
+          scrollX = TRUE,
+          scrollY = '350px',
+          paging = FALSE,
+          autoWidth = FALSE,
+          columnDefs = list(list(width = '75px', targets = "_all"))
+        ),
+        filter = "top"
+      )
+      filteredData$featureNames %>%
+        metadata$resetMetadata()
+    }
+    else{
+      errorMessage <- sprintf("No data loaded.", inFile$suffix)
+      shiny::showNotification(paste(errorMessage),type = "error", duration = 10)
+      output$tbl.metadata - DT::renderDataTable(NULL)
     }
   })
   ##################
@@ -327,6 +536,17 @@ shinyServer(function(input, output, session) {
                           abs = filteredData$abscissa,
                           ord = filteredData$ordinate),
       height = 400)
+  })
+  
+  ##############
+  # LOQ Handling
+  ##############
+  shiny::observeEvent(input$ab.detectLoqOutliers,{
+    if(dataLoaded() && loqLoaded()){
+      loq$checkValidity(numericFeatureNames = filteredData$numericFeatureNames)
+      print("Validity")
+      print(loq$validity)
+    }
   })
   ####################
   # model optimization
@@ -1238,10 +1458,26 @@ shinyServer(function(input, output, session) {
                       outlierObj = outliers,
                       regressionObj = regressor,
                       correlationObj = correlator,
-                      optimObj = optimizer)
+                      optimizerObj = optimizer)
     }
   )
   
+  shiny::observeEvent(input$si.exportType,{
+    exporter$setExportType <- input$si.exportType
+  })
+  
+  shiny::observeEvent((input$si.suffix),{
+    exporter$setSuffix <- input$si.suffix
+  })
+  
+  shiny::observeEvent(input$ab.export, {
+    outFile$setSuffix <- exporter$suffix
+    outFile$setExportType <- exporter$exportType
+    outFile$updateTimeString()
+    outFile$mergeFileName()
+    print(outFile$fileName)
+    optimizer$trafoAlpahbetTblDf()
+  })
   
   ##############
   # observe Tabs
@@ -1291,6 +1527,21 @@ shinyServer(function(input, output, session) {
         shiny::showNotification(paste(errorMessage),type = "error", duration = 10)
       }
     }
+    if ((input$menue) == "tab_loq"){
+      if (dataLoaded()){
+        #updateSelectInput(session, "si.exploreAbs", choices = filteredData$featureNames)
+      }
+      else{
+        errorMessage <- sprintf("No data loaded.", inFile$suffix)
+        shiny::showNotification(paste(errorMessage),type = "error", duration = 10)
+        output$tbl.loqStatistics <- DT::renderDataTable(NULL)
+        output$plt.loqOutSummary <- shiny::renderPlot(NULL)
+        output$tbl.loqOutSummary <- DT::renderDataTable(NULL)
+        output$plt.loqOutCleaningSummary <- shiny::renderPlot(NULL)
+        output$tbl.loqOutCleaningSummary <- DT::renderDataTable(NULL)
+      }
+    }
+    
     if (input$menue == "tab_wizard"){
       if (!dataLoaded()){
         errorMessage <- sprintf("No data loaded.", inFile$suffix)

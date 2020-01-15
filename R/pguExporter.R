@@ -113,38 +113,38 @@ pgu.exporter$set("public", "updateExportTypeAlphabet", function(dataLoaded = FAL
                                                                 dataRegression = FALSE){
   alphabet <- character(0)
   if(dataLoaded){
-    alphabet <- c(alphabet, "Complete", "Filtered Data", "Filtered Statistics")
+    alphabet <- c(alphabet, "Complete", "Filtered-Data", "Filtered-Statistics")
   }
   if(modelOptimized){
-    alphabet <- c(alphabet, "Optimal Transformations", "Optimized Transformation Parameters")
+    alphabet <- c(alphabet, "Tested-Transformations","Optimal-Transformations", "Optimized-Transformation-Parameter")
   }
   if(modelDefined){
-    alphabet <- c(alphabet , "Transformation Parameter", "Model Parameter", "Model Quality", "Model Test")
+    alphabet <- c(alphabet , "Transformed-Data", "Transformation-Parameter", "Model-Parameter", "Model-Quality", "Model-Test")
   }
   if(nanCleaned){
-    alphabet <- c(alphabet, "NA Statistics", "NA Details", "NA Cleaned Data")
+    alphabet <- c(alphabet, "NA-Statistics", "NA-Details", "NA-Cleaned-Data")
   }
   if(outlierDetected){
-    alphabet <- c(alphabet, "Outlier Statistics", "Outlier Details")
+    alphabet <- c(alphabet, "Outlier-Statistics", "Outlier-Details")
   }
   if(outlierRevised){
-    alphabet <- c(alphabet, "Outlier Corrected Data")
+    alphabet <- c(alphabet, "Outlier-Corrected-Data")
   }
   if(dataCorrelated){
     alphabet <- c(alphabet,
-                  "Pearson's R",
-                  "Pearson's P",
-                  "Kendall's Tau",
-                  "Kendall's P",
-                  "Spearman's Rho",
-                  "Spearman's P")
+                  "Pearson-R",
+                  "Pearson-P",
+                  "Kendall-Tau",
+                  "Kendall-P",
+                  "Spearman-Rho",
+                  "Spearman-P")
   }
   if(dataRegression){
     alphabet <- c(alphabet,
                   "Intercept",
-                  "Intercept P",
+                  "Intercept-P",
                   "Slope",
-                  "Slope P")
+                  "Slope-P")
   }
   private$.exportTypeAlphabet <- alphabet
 })
@@ -194,22 +194,34 @@ pgu.exporter$set("public", "export", function(filteredObj = "pgu.data",
                                               outlierObj = "pgu.outliers",
                                               regressionObj = "pgu.regressor",
                                               correlationObj = "pgu.correlator",
-                                              optimObj = "pgu.optimizer"){
+                                              optimizerObj = "pgu.optimizer"){
   switch (self$exportType,
-          "Filtered" = {self$exportData(filteredObj$rawData)},
-          "Transformed" = {self$exportData(transformedObj$rawData)},
-          "Scaled" = {self$exportData(scaledObj$rawData)},
-          "Revised" = {self$exportData(revisedObj$rawData)},
-          "Transformation" = {self$exportData(transformatorObj$trafoParameter)},
-          "Model" = {self$exportData(modelObj$modelParameter)},
-          "Missings" = {self$exportData(naObj$missings)},
-          "Missing-Statistics" = {self$exportData(naObj$missingsParameter)},
-          "Outliers" = {self$exportData(outlierObj$outliers %>%
-                                          dplyr::select(-(color)))},
-          "Outlier-Statistics" = {self$exportData(outlierObj$outliersStatistics)},
-          "Regression" = {print("regression")},
-          "Correlation" = {print("correlation")},
-          "Complete" = {print("complete")},
+          "Filtered-Data" = {self$exportData(filteredObj$rawData)},
+          "Filtered-Statistics" = {self$exportData(filteredObj$dataStatistics())},
+          "Tested-Transformations" = {self$exportData(optimizerObj$trafoAlpahbetTblDf())},
+          "Optimal-Transformations" = {self$exportData(optimizerObj$optTypes)},
+          "Optimized-Transformation-Parameter" = {self$exportData(optimizerObj$optParameter)},
+          "Transformed-Data" = {
+            self$exportData(transformedObj$rawData)
+            transformedObj$rawData %>%
+              head() %>%
+              print()
+            },
+          "Transformation-Parameter" = {self$exportData(transformatorObj$trafoParameter)},
+          
+          # "Transformed" = {self$exportData(transformedObj$rawData)},
+          # "Scaled" = {self$exportData(scaledObj$rawData)},
+          # "Revised" = {self$exportData(revisedObj$rawData)},
+          # "Transformation" = {self$exportData(transformatorObj$trafoParameter)},
+          # "Model" = {self$exportData(modelObj$modelParameter)},
+          # "Missings" = {self$exportData(naObj$missings)},
+          # "Missing-Statistics" = {self$exportData(naObj$missingsParameter)},
+          # "Outliers" = {self$exportData(outlierObj$outliers %>%
+          #                                 dplyr::select(-(color)))},
+          # "Outlier-Statistics" = {self$exportData(outlierObj$outliersStatistics)},
+          # "Regression" = {print("regression")},
+          # "Correlation" = {print("correlation")},
+          # "Complete" = {print("complete")},
           # "Complete" = {.self$exportDataAnalysis(obj = obj, transformator = transformator, model = model, cleaner = cleaner, optimizer = optimizer)},
           # "Raw" = {.self$exportData(obj = obj[[1]])},
           # "Transformed" = {.self$exportData(obj = obj[[2]])},

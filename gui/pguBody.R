@@ -25,30 +25,47 @@ body <- shinydashboard::dashboardBody(shinydashboard::tabItems(
               width = "100%"
             ),
             shiny::verbatimTextOutput("txt.loadInfo"),
-            shiny::numericInput(
-              "ni.import",
-              label = h5("Sheet Number"),
-              value = 1
+            shinydashboard::tabBox(
+              width = 12,
+              title = "Import",
+              # The id lets us use input$tabset1 on the server to find the current tab
+              id = "tabsetImport",
+              height = "100%",
+              shiny::tabPanel("CSV",
+                              shiny::radioButtons("rb.separator",
+                                                  label = h5("Separator"),
+                                                  choices = c(
+                                                    Comma = ",",
+                                                    Semicolon = ";",
+                                                    Whitespace = " ",
+                                                    Tab = "\t"
+                                                  ),
+                                                  selected = "\t"
+                              ),
+                              shiny::hr(),
+                              shiny::checkboxInput("cb.header",
+                                                   label = h5("Header"),
+                                                   value = TRUE)
+                              ),
+              shiny::tabPanel("Excel",
+                              shiny::numericInput("ni.import",
+                                                  label = h5("Sheet Number"),
+                                                  value = 1
+                              ),
+                              shiny::numericInput("ni.skipRows",
+                                                  label = h5("Skip Rows"),
+                                                  value = 0
+                              ),
+                              shiny::hr(),
+                              shiny::checkboxInput("cb.loqSheetLogical",
+                                                   label = h5("LOQ"),
+                                                   value = FALSE),
+                              shiny::numericInput("ni.loqSheetIndex",
+                                                  label = h5("LOQ Sheet Index"),
+                                                  value = 2)
+                              ),
+              shiny::tabPanel("HDF")
             ),
-            shiny::numericInput(
-              "ni.skipRows",
-              label = h5("Skip Rows"),
-              value = 0
-            ),
-            shiny::radioButtons(
-              "rb.separator",
-              label = h5("Separator"),
-              choices = c(
-                Comma = ",",
-                Semicolon = ";",
-                Whitespace = " ",
-                Tab = "\t"
-              ),
-              selected = "\t"
-            ),
-            shiny::checkboxInput("cb.header",
-                                 label = h5("Header"),
-                                 value = TRUE),
             shiny::actionButton("ab.import",
                                 label = h5("import"),
                                 width = "100%")
@@ -150,7 +167,45 @@ body <- shinydashboard::dashboardBody(shinydashboard::tabItems(
       )
     )
   ),
-  
+  shinydashboard::tabItem(
+    tabName = "tab_metadata",
+    shiny::fluidPage(
+      width = 12,
+      title = "Metadata",
+      shiny::fluidRow(
+        shiny::column(
+          width = 3,
+          shinydashboard::box(
+            width = 12,
+            title = "Menue",
+            status = "primary",
+            solidHeader = TRUE,
+            shiny::actionButton(
+              inputId = "ab.setMetadata",
+              label = "select metadata",
+              width = "100%"
+            ),
+            shiny::actionButton(
+              inputId = "ab.resetMetadata",
+              label = "reset selection",
+              width = "100%"
+            )
+          )
+        ),
+        shiny::column(
+          width = 9,
+          shinydashboard::box(
+            width = "100%",
+            height = "50%",
+            title = "Filter",
+            status = "primary",
+            solidHeader = TRUE,
+            DT::dataTableOutput("tbl.metadata", width = "100%", height = "100%")
+          )
+        )
+      )
+    )
+  ),
   shinydashboard::tabItem(
     tabName = "tab_explore",
     fluidPage(
@@ -199,6 +254,108 @@ body <- shinydashboard::dashboardBody(shinydashboard::tabItems(
         )
       )
     )),
+  
+  shinydashboard::tabItem(
+    tabName = "tab_loq",
+    shiny::fluidPage(
+      width = 12,
+      height = "575px",
+      title = "LOQ",
+      shiny::fluidRow(
+        shiny::column(
+          width = 3,
+          height = "575px",
+          title = "Menue",
+          status = "primary",
+          solidHeader = TRUE,
+          shiny::selectInput(
+            width = '100%',
+            "si.loqSubstitute",
+            label = h5("LOQ Outlier Substitute"),
+            choices = list(),
+            selected = 1,
+          ),
+          shiny::selectInput(
+            width = '100%',
+            "si.loqNanHandling",
+            label = h5("NAN Handling"),
+            choices = list(),
+            selected = 1,
+          ),
+          #shiny::hr(),
+          shiny::selectInput(
+            width = '100%',
+            "si.loqHandleFeature",
+            label = h5("Feature"),
+            choices = list(),
+            selected = 1
+          ),
+          shiny::selectInput(
+            width = '100%',
+            "si.loqSummary",
+            label = h5("Information Detail"),
+            choices = list("Statistics", "Details"),
+            selected = 1
+          ),
+          shiny::hr(),
+          shiny::actionButton(
+            inputId = "ab.detectLoqOutliers",
+            label = "detect LOQ outliers",
+            width = "100%"
+          ),
+          shiny::actionButton(
+            inputId = "ab.reviseLoqOutliers",
+            label = "revise LOQ outliers",
+            width = "100%"
+          ),
+          shiny::actionButton(
+            inputId = "ab.loqOutliersReset",
+            label = "reset",
+            width = "100%"
+          )
+        ),
+        shiny::column(
+          width = 9,
+          shinydashboard::box(
+            width = 12,
+            height = "1050px",
+            title = "Revise Outliers",
+            status = "primary",
+            solidHeader = TRUE,
+            shinydashboard::tabBox(
+              width = 12,
+              # The id lets us use input$tabset1 on the server to find the current tab
+              id = "tabsetLoq",
+              height = "1000px",
+              shiny::tabPanel(
+                title = 'LOQ Values',
+                shiny::fluidPage(
+                  DT::dataTableOutput("tbl.loqStatistics")
+                )
+              ),
+              shiny::tabPanel(
+                title = 'LOQ Outlier Summary',
+                shiny::fluidPage(
+                  shiny::plotOutput("plt.loqOutSummary"),
+                  shiny::hr(),
+                  DT::dataTableOutput("tbl.loqOutSummary")
+                )
+              ),
+              shiny::tabPanel(
+                title = 'Results',
+                shiny::fluidPage(
+                  plotOutput("plt.loqOutCleaningSummary"),
+                  shiny::hr(),
+                  DT::dataTableOutput("tbl.loqOutCleaningSummary")
+                )
+              )
+            )
+          )
+          
+        )
+      )
+    )
+  ),
   
   shinydashboard::tabItem(
     tabName = "tab_wizard",
@@ -725,7 +882,8 @@ body <- shinydashboard::dashboardBody(shinydashboard::tabItems(
                                                  choices = list(),
                                                  selected = 1),
                               
-                              shiny::downloadButton('db.export', 'Download'))))
+                              shiny::downloadButton('db.export', 'Download'),
+                              shiny::actionButton("ab.export", "action"))))
 ))
     
 

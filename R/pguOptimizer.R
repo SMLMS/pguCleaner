@@ -280,3 +280,13 @@ pgu.optimizer$set("public", "optimize", function(data  = "tbl_df", progress = "P
     }
   }
 })
+
+pgu.optimizer$set("public", "trafoAlpahbetTblDf", function(){
+  trafos <- c("none", "log2", "logNorm", "log10", "squareRoot", "cubeRoot", "arcsine", "inverse", "tuckeyLOP", "boxCox")
+  optimized <- is.element(trafos, self$trafoAlphabet)
+  mirrored <- c(rep(self$mirror, length(trafos)))
+  trafoAlphabetTbl <- tibble::tibble(trafos,
+                                     optimized,
+                                     mirrored)
+  return(trafoAlphabetTbl)
+})
