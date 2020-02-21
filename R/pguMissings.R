@@ -362,9 +362,12 @@ pgu.missings$set("public", "nanDistribution", function(data = "tbl_df"){
   return(d)
 })
 
-pgu.missings$set("public", "nanPositives", function(data = "tbl_df"){
-  data %>%
-    self$filterFeatures() %>%
+pgu.missings$set("public", "nanPositives", function(dfData = "tbl_df", dfMetadata = "tbl_df"){
+  dfMerge <- dfData
+  if(nrow(dfData) == nrow(dfMetadata)){
+    dfMerge <- dplyr::bind_cols(dfMetadata, dfData)
+  }
+  dfMerge %>%
     dplyr::filter_all(dplyr::any_vars(is.na(.))) %>%
     return()
 })

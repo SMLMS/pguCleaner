@@ -1,5 +1,6 @@
 library("R6")
 library("tidyverse")
+source(file = "../R/pguFile.R", local=TRUE)
 
 pgu.data <- R6::R6Class("pgu.data",
                         ####################
@@ -144,6 +145,12 @@ pgu.data$set("public", "featureIdx", function(feature = "character"){
 pgu.data$set("public", "numericData", function(){
   self$rawData %>%
     dplyr::select_if(is.numeric) %>%
+    return()
+})
+
+pgu.data$set("public", "nonNumericData", function(){
+  self$rawData %>%
+    dplyr::select_if(!is.numeric) %>%
     return()
 })
 ##################

@@ -14,6 +14,9 @@ pgu.file <- R6::R6Class("pgu.file",
                           .exportType = "character",
                           .timeString = "character",
                           .sheetIndex = "numeric",
+                          .dataSheet = "character",
+                          .loqSheet = "characetr",
+                          .metadataSheet = "character",
                           .separator = "character",
                           .skipRows = "numeric",
                           .header = "logical",
@@ -68,6 +71,24 @@ pgu.file <- R6::R6Class("pgu.file",
                           setSheetIndex = function(val = "numeric"){
                             private$.sheetIndex <- val
                           },
+                          dataSheet = function(){
+                            return(private$.dataSheet)
+                          },
+                          setDataSheet = function(val = "character"){
+                            private$.dataSheet <- val
+                          },
+                          loqSheet = function(){
+                            return(private$.loqSheet)
+                          },
+                          setLoqSheet = function(val = "character"){
+                            private$.loqSheet <- val
+                          },
+                          metadataSheet = function(){
+                            return(private$.metadataSheet)
+                          },
+                          setMetadataSheet = function(val = "character"){
+                            private$.metadataSheet <- val
+                          },
                           separator = function(){
                             return(private$.separator)
                           },
@@ -105,9 +126,12 @@ pgu.file <- R6::R6Class("pgu.file",
                             private$.suffix <- character(length(0))
                             private$.exportType <- character(length(0))
                             private$.sheetIndex <- 0
+                            private$.dataSheet <- "raw_data"
+                            private$.loqSheet <- "loq"
+                            private$.metadataSheet <- "metadata"
                             private$.separator <- character(length(0))
                             private$.skipRows <- 0
-                            private$.header = FALSE
+                            private$.header = TRUE
                             private$.naChar <- "NA"
                             self$updateTimeString()
                           },

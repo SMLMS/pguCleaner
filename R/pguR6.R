@@ -38,7 +38,7 @@ pgu.data <- R6::R6Class("pgu.data",
 ####################
 # public functions
 ####################
-pgu.data$set("public", "resetActiveFeatureNames", function(){
+pgu.data$set("public", "reset", function(){
   private$activeFeatureNames <- self$featureNames
 })
 ##################

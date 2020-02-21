@@ -108,17 +108,28 @@ pgu.optimizer$set("public", "resetOptParameter", function(){
     features <- append(features, features)
     mirrorLogic <- append(mirrorLogic, c(rep(TRUE, length(self$features))))
   }
-  logLikelihood <- as.numeric(c(rep(NA, length(features))))
-  bic <- as.numeric(c(rep(NA, length(features))))
-  aic <- as.numeric(c(rep(NA, length(features))))
-  aicc <- as.numeric(c(rep(NA, length(features))))
-  rmse <- as.numeric(c(rep(NA, length(features))))
-  w.shapiro <- as.numeric(c(rep(NA, length(features))))
-  p.shapiro <- as.numeric(c(rep(NA, length(features))))
-  d.kolmogorow <- as.numeric(c(rep(NA, length(features))))
-  p.kolmogorow <- as.numeric(c(rep(NA, length(features))))
-  a.anderson <- as.numeric(c(rep(NA, length(features))))
-  p.anderson <- as.numeric(c(rep(NA, length(features))))
+  # logLikelihood <- as.numeric(c(rep(NA, length(features))))
+  # bic <- as.numeric(c(rep(NA, length(features))))
+  # aic <- as.numeric(c(rep(NA, length(features))))
+  # aicc <- as.numeric(c(rep(NA, length(features))))
+  # rmse <- as.numeric(c(rep(NA, length(features))))
+  # w.shapiro <- as.numeric(c(rep(NA, length(features))))
+  # p.shapiro <- as.numeric(c(rep(NA, length(features))))
+  # d.kolmogorow <- as.numeric(c(rep(NA, length(features))))
+  # p.kolmogorow <- as.numeric(c(rep(NA, length(features))))
+  # a.anderson <- as.numeric(c(rep(NA, length(features))))
+  # p.anderson <- as.numeric(c(rep(NA, length(features))))
+  logLikelihood <- as.numeric(c(rep(0, length(features))))
+  bic <- as.numeric(c(rep(0, length(features))))
+  aic <- as.numeric(c(rep(0, length(features))))
+  aicc <- as.numeric(c(rep(0, length(features))))
+  rmse <- as.numeric(c(rep(0, length(features))))
+  w.shapiro <- as.numeric(c(rep(0, length(features))))
+  p.shapiro <- as.numeric(c(rep(0, length(features))))
+  d.kolmogorow <- as.numeric(c(rep(0, length(features))))
+  p.kolmogorow <- as.numeric(c(rep(0, length(features))))
+  a.anderson <- as.numeric(c(rep(0, length(features))))
+  p.anderson <- as.numeric(c(rep(0, length(features))))
   private$.optParameter <- tibble::tibble(features, mirrorLogic, logLikelihood, bic, aic, aicc, rmse,
                                           w.shapiro, p.shapiro, d.kolmogorow, p.kolmogorow, a.anderson, p.anderson)
 })
@@ -225,11 +236,11 @@ pgu.optimizer$set("public", "updateMirrorLogic", function(transformator = "pgu.t
 pgu.optimizer$set("public", "updateOptParameter", function(model = "pgu.model", type = "character", logic = "character"){
   modelParameter <- model$modelParameter
   referenceParameter <- self$optParameter %>%
-    tidyr::unite(features, features, mirrorLogic, sep="/")
+    tidyr::unite(features, features, mirrorLogic, sep="//")
   referenceTypes <- self$optTypes %>%
-    tidyr::unite(features, features, mirrorLogic, sep="/")
+    tidyr::unite(features, features, mirrorLogic, sep="//")
   for(feature in model$modelParameter[["features"]]){
-    referenceFeature <- paste(feature, as.character(logic), sep = "/")
+    referenceFeature <- paste(feature, as.character(logic), sep = "//")
     referenceIdx <- match(referenceFeature, referenceTypes[["features"]])
     modelIdx = match(feature, modelParameter[["features"]])
     for (test in c("logLikelihood", "p.shapiro", "p.kolmogorow", "p.anderson", "w.shapiro")){
@@ -248,11 +259,11 @@ pgu.optimizer$set("public", "updateOptParameter", function(model = "pgu.model", 
     }
   }
   private$.optParameter <- referenceParameter %>%
-    tidyr::separate(features, into = c("features", "mirrorLogic"), sep="/") %>%
+    tidyr::separate(features, into = c("features", "mirrorLogic"), sep="//") %>%
     dplyr::mutate(mirrorLogic = as.logical(mirrorLogic))
-
+  
   private$.optTypes <- referenceTypes %>%
-    tidyr::separate(features, into = c("features", "mirrorLogic"), sep="/")
+    tidyr::separate(features, into = c("features", "mirrorLogic"), sep="//")
 })
 
 ########################

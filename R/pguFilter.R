@@ -82,3 +82,9 @@ pgu.filter$set("public", "filter", function(data = "tbl_df"){
     dplyr::slice(self$rowIdx) %>%
     return()
 })
+
+pgu.filter$set("public", "filterRows", function(data = "tbl_df"){
+  data %>%
+    dplyr::slice(self$rowIdx) %>%
+    return()
+})

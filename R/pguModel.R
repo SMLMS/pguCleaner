@@ -305,8 +305,14 @@ pgu.model$set("public", "plotModel", function(feature = "character"){
   idx <- self$featureIdx(feature)
   model <- self$modelList[[idx]]
   p1 <- model$plotHistogram()
-  p2 <- model$plotResiduals()
-  p3 <- model$plotResidualDist() + ggplot2::coord_flip()
+  xLimits <- layer_scales(p1)$x$range$range
+  p2 <- model$plotResiduals() +
+    ggplot2::scale_x_continuous(position = "bottom", limits=xLimits)
+  yLimits <- layer_scales(p2)$y$range$range
+  p3 <- model$plotResidualDist() +
+    ggplot2::coord_flip() +
+    ggplot2::scale_x_continuous(position = "bottom", limits=yLimits)
+    
   p4 <- model$normalQQPlot()
   p <- gridExtra::grid.arrange(p1,p2,p3,p4, layout_matrix = rbind(c(1,1,4),c(2,2,3)))
   return(p)

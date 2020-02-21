@@ -120,15 +120,15 @@ pgu.outliers$set("public", "resetOutliersParameter", function(data = "tbl_df", p
 ##################
 # helper functions
 ##################
-pgu.outliers$set("public", "featureIdx", function(feature = "character"){
-  idx <- match(feature, self$modelParameter[["features"]])
-  if(is.na(idx)){
-    rString <- sprintf("\nWarning in pgu.outliers: feature %s is not known\n",
-                       feature)
-    cat(rString)
-  }
-  return(idx)
-})
+# pgu.outliers$set("public", "featureIdx", function(feature = "character"){
+#   idx <- match(feature, self$modelParameter[["features"]])
+#   if(is.na(idx)){
+#     rString <- sprintf("\nWarning in pgu.outliers: feature %s is not known\n",
+#                        feature)
+#     cat(rString)
+#   }
+#   return(idx)
+# })
 
 pgu.outliers$set("public", "filterFeatures", function(data = "tbl_df"){
   data %>%
