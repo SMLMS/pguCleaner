@@ -13,6 +13,11 @@ source(file = "../R/pguOptimizer.R", local=TRUE)
 source(file = "../R/pguTransformator.R", local = TRUE)
 source(file = "../R/pguModel.R", local=TRUE)
 source(file = "../R/pguNormDist.R", local=TRUE)
+source(file = "../R/pguImputation.R", local=TRUE)
+source(file = "../R/pguOutliers.R", local = TRUE)
+source(file = "../R/pguCorrelator.R", local=TRUE)
+source(file = "../R/pguRegressor.R", local=TRUE)
+source(file = "../R/pguExporter.R", local=TRUE)
 
 pgu.delegate <- R6::R6Class("pgu.delegate",
                           ####################
@@ -34,7 +39,15 @@ pgu.delegate <- R6::R6Class("pgu.delegate",
                             .transformator = "pgu.transformator",
                             .model = "pgu.model",
                             .transformedData = "pgu.data",
-                            .featureModel = "pgu.normDist"
+                            .featureModel = "pgu.normDist",
+                            .imputer = "pgu.imputation",
+                            .imputedData = "pgu.data",
+                            .outliers = "pgu.outliers",
+                            .revisedData = "pgu.data",
+                            .cleanedData = "pgu.data",
+                            .correlator = "pgu.correlator",
+                            .regressor = "pgu.regressor",
+                            .exporter = "pgu.exporter"
                           ),
                           ##################
                           # accessor methods
@@ -87,6 +100,30 @@ pgu.delegate <- R6::R6Class("pgu.delegate",
                             },
                             featureModel = function(){
                               return(private$.featureModel)
+                            },
+                            imputer = function(){
+                              return(private$.imputer)
+                            },
+                            imputedData = function(){
+                              return(private$.imputedData)
+                            },
+                            outliers = function(){
+                              return(private$.outliers)
+                            },
+                            revisedData = function(){
+                              return(private$.revisedData)
+                            },
+                            cleanedData = function(){
+                              return(private$.cleanedData)
+                            },
+                            correlator = function(){
+                              return(private$.correlator)
+                            },
+                            regressor = function(){
+                              return(private$.regressor)
+                            },
+                            exporter = function(){
+                              return(private$.exporter)
                             }
                           ),
                           ###################
@@ -111,6 +148,14 @@ pgu.delegate <- R6::R6Class("pgu.delegate",
                               private$.model <- pgu.model$new()
                               private$.transformedData <- pgu.data$new()
                               private$.featureModel <- pgu.normDist$new()
+                              private$.imputer <- pgu.imputation$new()
+                              private$.imputedData <- pgu.data$new()
+                              private$.outliers <- pgu.outliers$new()
+                              private$.revisedData <- pgu.data$new()
+                              private$.cleanedData <- pgu.data$new()
+                              private$.correlator <- pgu.correlator$new()
+                              private$.regressor <- pgu.regressor$new()
+                              private$.exporter <- pgu.exporter$new()
                             },
                             finalize = function() {
                               print("Instance of pgu.delegate removed from heap")
@@ -137,6 +182,14 @@ pgu.delegate <- R6::R6Class("pgu.delegate",
                               print(self$model)
                               print(self$transformedData)
                               print(self$featureModel)
+                              print(self$imputer)
+                              print(self$imputedData)
+                              print(self$outliers)
+                              print(self$revisedData)
+                              print(self$cleanedData)
+                              print(self$correlator)
+                              print(self$regressor)
+                              print(self$exporter)
                               invisible(self)
                             }
                           )
@@ -174,7 +227,7 @@ pgu.delegate$set("public", "importData", function(input, output, session){
     )
   }
   else{
-    private$.status$update(processName = "dataImported", value = FALSE)
+    private$.status$update(processName = "dataUploaded", value = FALSE)
     shiny::showNotification(paste("No file uploaded to import. Please upload a valid file first."),type = "error", duration = 10)
   }
 })
@@ -245,7 +298,7 @@ pgu.delegate$set("public", "updateFilter", function(input, output, session){
     }
   }
   else{
-    shiny::showNotification(paste("No file uploaded to import. Please upload a valid file first."),type = "error", duration = 10)
+    shiny::showNotification(paste("No file imported. Please import a valid file first."),type = "error", duration = 10)
   }
 })
 
@@ -278,7 +331,7 @@ pgu.delegate$set("public", "updateFilterInverse", function(input, output, sessio
     }
   }
   else{
-    shiny::showNotification(paste("No file uploaded to import. Please upload a valid file first."),type = "error", duration = 10)
+    shiny::showNotification(paste("No file imported. Please import a valid file first."),type = "error", duration = 10)
   }
 })
 
@@ -288,7 +341,7 @@ pgu.delegate$set("public", "resetFilter", function(input, output, session){
     private$.filterSet$resetColIdx(data = self$rawData$rawData)
   }
   else{
-    shiny::showNotification(paste("No file uploaded to import. Please upload a valid file first."),type = "error", duration = 10)
+    shiny::showNotification(paste("No file imported. Please import a valid file first."),type = "error", duration = 10)
   }
 })
 
@@ -300,6 +353,9 @@ pgu.delegate$set("public", "filterData", function(input, output, session){
       self$filterSet$filterRows()
     self$updateExplorationData(input, output, session)
     private$.status$update(processName = "dataFiltered", value = TRUE)
+  }
+  else{
+    shiny::showNotification(paste("No file imported. Please import a valid file first."),type = "error", duration = 10)
   }
 })
 
@@ -337,6 +393,9 @@ pgu.delegate$set("public", "updateExplorationGraphic", function(input, output, s
       self$explorer$scatterPlot(),
       height = 400)
   }
+  else{
+    output$plt.exploreGraphic <- shiny::renderPlot(NULL)
+  }
 })
 
 pgu.delegate$set("public", "updateExplorationAbscissaGraphic", function(input, output, session){
@@ -346,6 +405,9 @@ pgu.delegate$set("public", "updateExplorationAbscissaGraphic", function(input, o
       height = 400
     )
   }
+  else{
+    output$plt.exploreAbscissaGraphic <- shiny::renderPlot(NULL)
+  }
 })
 
 pgu.delegate$set("public", "updateExplorationOrdinateGraphic", function(input, output, session){
@@ -354,6 +416,9 @@ pgu.delegate$set("public", "updateExplorationOrdinateGraphic", function(input, o
       self$explorer$ordinatePlot(),
       height = 400
     )
+  }
+  else{
+    output$plt.exploreOrdinateGraphic <- shiny::renderPlot(NULL)
   }
 })
 
@@ -377,6 +442,9 @@ pgu.delegate$set("public", "updateExplorationAbscissaTable", function(input, out
         )
     })
   }
+  else{
+    output$tbl.exploreAbscissaStatistics <- DT::renderDataTable(NULL)
+  }
 })
                  
 pgu.delegate$set("public", "updateExplorationOrdinateTable", function(input, output, session){
@@ -398,6 +466,9 @@ pgu.delegate$set("public", "updateExplorationOrdinateTable", function(input, out
         )
     })
   }
+  else{
+    output$tbl.exploreOrdinateStatistics <- DT::renderDataTable(NULL)
+  }
 })
 
 ######################
@@ -411,6 +482,9 @@ pgu.delegate$set("public", "updateLoqDetectGui", function(input, output, session
                              choices = self$filteredData$numericFeatureNames,
                              selected = self$filteredData$numericFeatureNames[1])
     
+  }
+  else{
+    shiny::showNotification(paste("No filtered data set. Please filter data set first."),type = "error", duration = 10)
   }
 })
 
@@ -429,6 +503,9 @@ pgu.delegate$set("public", "detectLoq", function(input, output, session){
     private$.loq$findOutliers(obj = self$filteredData$numericData())
     private$.loq$collectStatistics(obj = self$filteredData$numericData())
     private$.status$update(processName = "loqDetected", value = TRUE)
+  }
+  else{
+    shiny::showNotification(paste("No filtered data set. Please filter data set first."),type = "error", duration = 10)
   }
 })
 
@@ -454,6 +531,9 @@ pgu.delegate$set("public", "updateLoqDetectStatisticsTbl", function(input, outpu
           )
         )
     )
+  }
+  else{
+    output$tbl.loqDetectStatistics <- DT::renderDataTable(NULL)
   }
 })
 
@@ -555,6 +635,9 @@ pgu.delegate$set("public", "updateLoqDetectStatisticsGraphic", function(input, o
       height = 400
     )
   }
+  else{
+    output$plt.loqDetectStatistics <- shiny::renderPlot(NULL)
+  }
 })
 
 pgu.delegate$set("public", "updateLoqDetectFeatureGraphic", function(input, output, session){
@@ -563,6 +646,9 @@ pgu.delegate$set("public", "updateLoqDetectFeatureGraphic", function(input, outp
       self$loq$featurePlot(obj = self$filteredData$rawData, feature = input$si.loqDetectFeature),
       height = 425
     )
+  }
+  else{
+    output$plt.loqDetectFeature <- shiny::renderPlot(NULL)
   }
 })
 
@@ -617,6 +703,9 @@ pgu.delegate$set("public", "updateLoqMutateGui", function(input, output, session
                              selected = self$filteredData$numericFeatureNames[1])
     
   }
+  else{
+    shiny::showNotification(paste("No loq outliers detected. Please screen for loq outliers first."),type = "error", duration = 10)
+  }
 })
 
 pgu.delegate$set("public", "updateLloqSubstitute", function(input, output, session){
@@ -647,6 +736,9 @@ pgu.delegate$set("public", "mutateLoq", function(input, output, session){
       dplyr::select(c(!!name, self$filteredData$numericFeatureNames))
     private$.status$update(processName = "loqMutated", value = TRUE)
   }
+  else{
+    shiny::showNotification(paste("No loq outliers detected. Please screen for loq outliers first."),type = "error", duration = 10)
+  }
 })
 
 pgu.delegate$set("public", "updateLoqMutateStatisticsTbl", function(input, output, session){
@@ -669,6 +761,9 @@ pgu.delegate$set("public", "updateLoqMutateStatisticsTbl", function(input, outpu
           )
         )
     )
+  }
+  else{
+    output$tbl.loqMutateStatistics <- DT::renderDataTable(NULL)
   }
 })
 
@@ -770,6 +865,9 @@ pgu.delegate$set("public", "updateLoqMutateStatisticsGraphic", function(input, o
       height = 400
     )
   }
+  else{
+    output$plt.loqMutateStatistics <- shiny::renderPlot(NULL)
+  }
 })
 
 pgu.delegate$set("public", "updateLoqMutateFeatureGraphic", function(input, output, session){
@@ -778,6 +876,9 @@ pgu.delegate$set("public", "updateLoqMutateFeatureGraphic", function(input, outp
       self$loq$featurePlot(obj = self$loqMutatedData$rawData, feature = input$si.loqMutateFeature),
       height = 425
     )
+  }
+  else{
+    output$plt.loqMutateFeature <- shiny::renderPlot(NULL)
   }
 })
 
@@ -853,6 +954,9 @@ pgu.delegate$set("public", "optimizeTrafoParameter", function(input, output, ses
     on.exit(progress$close())
     private$.status$update(processName = "modelOptimized", value = TRUE)
   }
+  else{
+    shiny::showNotification(paste("No loq analysis perfomred. Please mutate loq outliers first."),type = "error", duration = 10)
+  }
 })
 
 pgu.delegate$set("public", "updateDetectedTrafoTypes", function(input, output, session){
@@ -873,6 +977,9 @@ pgu.delegate$set("public", "updateDetectedTrafoTypes", function(input, output, s
             ))
           ))
     )
+  }
+  else{
+    output$tbl.trafoDetectTypes <- DT::renderDataTable(NULL)
   }
 })
 
@@ -895,6 +1002,9 @@ pgu.delegate$set("public", "updateDetectedTrafoParameter", function(input, outpu
             ))
           ))
     )
+  }
+  else{
+    output$tbl.trafoDetectParameters <- DT::renderDataTable(NULL)
   }
 })
 
@@ -928,6 +1038,9 @@ pgu.delegate$set("public", "updateTrafoDetectGui", function(input, output, sessi
     shiny::updateCheckboxInput(session,
                                "cb.wizardMirror",
                                value = self$optimizer$mirror)
+  }
+  else{
+    shiny::showNotification(paste("No loq analysis perfomred. Please mutate loq outliers first."),type = "error", duration = 10)
   }
 })
 
@@ -993,11 +1106,9 @@ pgu.delegate$set("public", "trafoMutateGlobal", function(input, output, session)
     
     self$loqMutatedData$numericData() %>%
       private$.transformator$estimateTrafoParameter()
-    
     self$loqMutatedData$numericData() %>%
       private$.transformator$mutateData() %>%
       private$.model$resetModel(progress)
-    
     name  <- as.name("Sample Name")
     private$.transformedData$setRawData <- self$loqMutatedData$numericData() %>%
       self$transformator$mutateData() %>%
@@ -1008,6 +1119,9 @@ pgu.delegate$set("public", "trafoMutateGlobal", function(input, output, session)
                            as.character()) %>%
       dplyr::select(c(!!name, self$loqMutatedData$numericFeatureNames))
     private$.status$update(processName = "modelDefined", value = TRUE)
+  }
+  else{
+    shiny::showNotification(paste("No loq analysis perfomred. Please mutate loq outliers first."),type = "error", duration = 10)
   }
 })
 
@@ -1021,7 +1135,7 @@ pgu.delegate$set("public", "trafoMutateFeature", function(input, output, session
     self$loqMutatedData$numericData() %>%
       private$.transformator$estimateTrafoParameter()
     
-    self$loqMutatedData$numericData %>%
+    self$loqMutatedData$numericData() %>%
       self$transformator$mutateData() %>%
       dplyr::select(input$si.trafoMutateFeature) %>%
       private$.featureModel$resetNormDist()
@@ -1073,6 +1187,9 @@ pgu.delegate$set("public", "trafoMutateFeature", function(input, output, session
                            as.character()) %>%
       dplyr::select(c(!!name, self$loqMutatedData$numericFeatureNames))
   }
+  else{
+    shiny::showNotification(paste("No global model defined. Please defina a global transformation model first."),type = "error", duration = 10)
+  }
 })
 
 pgu.delegate$set("public", "updateTrafoMutateFeatureGraphic", function(input, output, session){
@@ -1080,6 +1197,9 @@ pgu.delegate$set("public", "updateTrafoMutateFeatureGraphic", function(input, ou
     output$plt.trafoMutateFeature <- shiny::renderPlot(
       self$model$plotModel(feature = input$si.trafoMutateFeature)
     )
+  }
+  else{
+    output$plt.trafoMutateFeature <- shiny::renderPlot(NULL)
   }
 })
 
@@ -1104,6 +1224,9 @@ pgu.delegate$set("public", "updateTrafoMutateFeatureParameterTbl", function(inpu
           ))
     )
   }
+  else{
+    output$tbl.trafoMutateFeatureParameter <- DT::renderDataTable(NULL)
+  }
 })
 
 pgu.delegate$set("public", "updateTrafoMutateFeatureQualityTbl", function(input, output, session){
@@ -1127,6 +1250,9 @@ pgu.delegate$set("public", "updateTrafoMutateFeatureQualityTbl", function(input,
           ))
     )
   }
+  else{
+    output$tbl.trafoMutateFeatureQuality <- DT::renderDataTable(NULL)
+  }
 })
 
 pgu.delegate$set("public", "updtateTrafoMutateGlobalParameterTbl", function(input, output, session){
@@ -1148,6 +1274,9 @@ pgu.delegate$set("public", "updtateTrafoMutateGlobalParameterTbl", function(inpu
             ))
           ))
     )
+  }
+  else{
+    output$tbl.trafoMutateGlobalParameter <- DT::renderDataTable(NULL)
   }
 })
 
@@ -1171,6 +1300,9 @@ pgu.delegate$set("public", "updateTrafoMutateGlobalModelTbl", function(input, ou
           ))
     )
   }
+  else{
+    output$tbl.trafoMutateGlobalModel <- DT::renderDataTable(NULL)
+  }
 })
 
 pgu.delegate$set("public", "updateTrafoMutateGlobalQualityTbl", function(input, output, session){
@@ -1192,6 +1324,9 @@ pgu.delegate$set("public", "updateTrafoMutateGlobalQualityTbl", function(input, 
             ))
           ))
     )
+  }
+  else{
+    output$tbl.trafoMutateGlobalQuality <- DT::renderDataTable(NULL)
   }
 })
 
@@ -1215,7 +1350,967 @@ pgu.delegate$set("public", "updateTrafoMutateGlobalTestsTbl", function(input, ou
           ))
     )
   }
+  else{
+    output$tbl.trafoMutateGlobalTests <- DT::renderDataTable(NULL)
+  }
 })
+
+pgu.delegate$set("public", "updateTrafoMutateGlobalDataTbl", function(input, output, session){
+    options(htmlwidgets.TOJSON_ARGS = list(na = 'string'))
+    if(self$status$query(processName = "modelDefined")){
+      output$tbl.trafoMutateGlobalData <- DT::renderDataTable(
+        self$filteredMetadata$rawData %>%
+          dplyr::right_join(self$transformedData$rawData, by = "Sample Name") %>%
+          dplyr::mutate_if(is.numeric, round, 3) %>%
+          DT::datatable(
+            options = list(
+              scrollX = TRUE,
+              scrollY = '350px',
+              paging = FALSE,
+              dom = "Blfrtip",
+              buttons = list(list(
+                extend = 'csv',
+                filename = self$fileName$bluntFileName("transformedData"),
+                text = "Download"
+              ))
+            )
+          )
+      )
+    }
+  else{
+    output$tbl.trafoMutateGlobalData <- DT::renderDataTable(NULL)
+  }
+})
+
+#########################
+# impute detect functions
+#########################
+pgu.delegate$set("public", "imputeDetect", function(input, output, session){
+  if(self$status$query(processName = "modelDefined")){
+    self$transformedData$numericData() %>%
+      private$.imputer$resetImputationParameter()
+    private$.status$update(processName = "naDetected", value = TRUE)
+  }
+  else{
+    shiny::showNotification(paste("No global model defined. Please defina a global transformation model first."),type = "error", duration = 10)
+  }
+})
+
+pgu.delegate$set("public", "updateImputeDetectGraphic", function(input, output, session){
+  if(self$status$query(processName = "naDetected")){
+    output$plt.imputeDetectSummary <- shiny::renderPlot(
+      self$imputer$imputationSiteHeatMap()
+    )
+  }
+  else{
+    output$plt.imputeDetectSummary <- shiny::renderPlot(NULL)
+  }
+})
+
+pgu.delegate$set("public", "updateImputeDetectStatisticsTbl", function(input, output, session){
+  if(self$status$query(processName = "naDetected")){
+    output$tbl.imputeDetectStatistics <- DT::renderDataTable(
+      self$transformedData$numericData() %>%
+        self$imputer$imputationSiteDistribution() %>%
+        DT::datatable(
+          extensions = "Buttons",
+          options = list(
+            scrollX = TRUE,
+            scrollY = '350px',
+            paging = FALSE,
+            dom = "Blfrtip",
+            buttons = list(list(
+              extend = 'csv',
+              filename = self$fileName$bluntFileName("imputationSiteDetectionStatistics"),
+              text = "Download"
+            ))
+          ))
+    )
+  }
+  else{
+    output$tbl.imputeDetectStatistics <- DT::renderDataTable(NULL)
+  }
+})
+
+pgu.delegate$set("public", "updateImputeDetectDetailTbl", function(input, output, session){
+  if(self$status$query(processName = "naDetected")){
+    output$tbl.imputeDetectDetail <- DT::renderDataTable(
+      self$loqMutatedData$rawData %>%
+        self$imputer$mergeImputationSiteData(dfMetadata = self$metadata$rawData) %>%
+        format.data.frame(scientific = TRUE, digits = 4) %>%
+        DT::datatable(
+          extensions = "Buttons",
+          options = list(
+            scrollX = TRUE,
+            scrollY = '350px',
+            paging = FALSE,
+            dom = "Blfrtip",
+            buttons = list(list(
+              extend = 'csv',
+              filename = self$fileName$bluntFileName("imputationSiteDetectionDetail"),
+              text = "Download"
+            ))
+          ))
+    )
+  }
+  else{
+    output$tbl.imputeDetectDetail <- DT::renderDataTable(NULL)
+  }
+})
+
+pgu.delegate$set("public", "updateImputeDetectDataTbl", function(input, output, session){
+  if(self$status$query(processName = "naDetected")){
+    output$tbl.imputeDetectData <- DT::renderDataTable(
+      self$filteredMetadata$rawData %>%
+        dplyr::right_join(self$transformedData$rawData, by = "Sample Name") %>%
+        format.data.frame(scientific = TRUE, digits = 4) %>%
+        DT::datatable(
+          extensions = "Buttons",
+          options = list(
+            scrollX = TRUE,
+            scrollY = '350px',
+            paging = FALSE,
+            dom = "Blfrtip",
+            buttons = list(list(
+              extend = 'csv',
+              filename = self$fileName$bluntFileName("imputationSiteDetectionData"),
+              text = "Download"
+            ))
+          ))
+    )
+  }
+  else{
+    output$tbl.imputeDetectData <- DT::renderDataTable(NULL)
+  }
+})
+
+#########################
+# impute mutate functions
+#########################
+pgu.delegate$set("public", "updateImputeMutateFeature", function(input, output, session){
+  if(self$status$query(processName = "naDetected")){
+    shiny::updateSelectInput(session,
+                             "si.imputeMutateFeature",
+                             choices = self$imputer$imputationParameter[["features"]],
+                             selected = self$imputer$imputationParameter[["features"]][1]
+    )
+  }
+})
+
+pgu.delegate$set("public", "updateImputeMutateMethod", function(input, output, session){
+  if(self$status$query(processName = "naDetected")){
+    shiny::updateSelectInput(session,
+                             "si.imputeMutateMethod",
+                             choices = self$imputer$imputationAgentAlphabet,
+                             selected = self$imputer$imputationAgent
+    )
+  }
+})
+
+pgu.delegate$set("public", "updateImputeMutateSeed", function(input, output, session){
+  if(self$status$query(processName = "naDetected")){
+    shiny::updateNumericInput(session,
+                              "ni.imputeMutateSeed",
+                              value = self$imputer$seed)
+  }
+})
+
+pgu.delegate$set("public", "updateImputeMutateIterations", function(input, output, session){
+  if(self$status$query(processName = "naDetected")){
+    shiny::updateNumericInput(session,
+                              "ni.imputeMutateIterations",
+                              value = self$imputer$iterations)
+  }
+})
+
+pgu.delegate$set("public", "updateImputeMutateGui", function(input, output, session){
+  if(self$status$query(processName = "naDetected")){
+    self$updateImputeMutateMethod(input, output, session)
+    self$updateImputeMutateSeed(input, output, session)
+    self$updateImputeMutateIterations(input, output, session)
+    self$updateImputeMutateFeature(input, output, session)
+  }
+})
+
+pgu.delegate$set("public", "imputeMutate", function(input, output, session){
+  if(self$status$query(processName = "naDetected")){
+    private$.imputer$setImputationAgent <- input$si.imputeMutateMethod
+    private$.imputer$setSeed <- input$ni.imputeMutateSeed
+    private$.imputer$setIterations <- input$ni.imputeMutateIterations
+    
+    progress <- shiny::Progress$new(session, min = 1, max = length(self$transformedData$numericFeatureNames))
+    progress$set(message = "Impute Missings", value = 0)
+    on.exit(progress$close())
+    
+    name  <- as.name("Sample Name")
+    private$.imputedData$setRawData <- self$transformedData$numericData() %>%
+      self$imputer$handleImputationSites(progress = progress) %>%
+      # self$model$rescaleData() %>%
+      # self$transformator$reverseMutateData() %>%
+      tibble::add_column(!! name := self$transformedData$rawData %>%
+                           dplyr::select(!!name) %>%
+                           unlist() %>%
+                           as.character()) %>%
+      dplyr::select(c(!!name, self$transformedData$numericFeatureNames))
+    private$.status$update(processName = "naMutated", value = TRUE)
+  }
+  else{
+    shiny::showNotification(paste("No Na's detected. Please detect missing first."),type = "error", duration = 10)
+  }
+})
+
+pgu.delegate$set("public", "updateImputeMutateFeatureDetailGraphic", function(input, output, session){
+  if(self$status$query(processName = "naMutated")){
+    output$plt.imputeMutateFeatureDetail <- shiny::renderPlot(
+      self$imputer$featurePlot(data = self$imputedData$numericData(),
+                               feature = input$si.imputeMutateFeature)
+    )
+  }
+  else{
+    output$plt.imputeMutateFeatureDetail <- shiny::renderPlot(NULL)
+  }
+})
+
+pgu.delegate$set("public", "updateImputeMutateFeatureDetailTbl", function(input, output, session){
+  if (self$status$query(processName = "naMutated")){
+    output$tbl.imputeMutateFeatureDetail <- DT::renderDataTable(
+      self$filteredMetadata$rawData %>%
+        dplyr::right_join(self$imputedData$rawData %>%
+                            dplyr::select(c("Sample Name", input$si.imputeMutateFeature)),
+                          by = "Sample Name") %>%
+        dplyr::slice(self$imputer$imputationSiteIdxByFeature(feature = input$si.imputeMutateFeature)) %>%
+        format.data.frame(scientific = TRUE, digits = 4) %>%
+        DT::datatable(
+          extensions = "Buttons",
+          options = list(
+            scrollX = TRUE,
+            scrollY = '350px',
+            paging = FALSE,
+            dom = "Blfrtip",
+            buttons = list(list(
+              extend = 'csv',
+              filename = self$fileName$bluntFileName("imputationSiteMutationDetails"),
+              text = "Download"
+            ))
+          ))
+    ) 
+  }
+  else{
+    output$tbl.imputeMutateFeatureDetail <- DT::renderDataTable(NULL)
+  }
+})
+
+pgu.delegate$set("public", "updateImputeMutateDetailTbl", function(input, output, session){
+  if(self$status$query(processName = "naMutated")){
+    dfImputationSites <- self$imputer$imputationSites
+    idx <- dfImputationSites[["row"]][!duplicated(dfImputationSites[["row"]])]
+
+    output$tbl.imputeMutateDetail <- DT::renderDataTable(
+      self$filteredMetadata$rawData %>%
+        dplyr::right_join(self$imputedData$rawData, by = "Sample Name") %>%
+        dplyr::slice(idx) %>%
+        format.data.frame(scientific = TRUE, digits = 4) %>%
+        DT::datatable(
+          extensions = "Buttons",
+          options = list(
+            scrollX = TRUE,
+            scrollY = '350px',
+            paging = FALSE,
+            dom = "Blfrtip",
+            buttons = list(list(
+              extend = 'csv',
+              filename = self$fileName$bluntFileName("imputationSiteMutationDetail"),
+              text = "Download"
+            ))
+          ))
+    )
+  }
+  else{
+    output$tbl.imputeMutateDetail <- DT::renderDataTable(NULL)
+  }
+})
+
+pgu.delegate$set("public", "updateImputeMutateDataTbl", function(input, output, session){
+  if(self$status$query(processName = "naMutated")){
+    output$tbl.imputeMutateData <- DT::renderDataTable(
+      self$filteredMetadata$rawData %>%
+        dplyr::right_join(self$imputedData$rawData, by = "Sample Name") %>%
+        format.data.frame(scientific = TRUE, digits = 4) %>%
+        DT::datatable(
+          extensions = "Buttons",
+          options = list(
+            scrollX = TRUE,
+            scrollY = '350px',
+            paging = FALSE,
+            dom = "Blfrtip",
+            buttons = list(list(
+              extend = 'csv',
+              filename = self$fileName$bluntFileName("imputationSiteMutationData"),
+              text = "Download"
+            ))
+          ))
+    )
+  }
+  else{
+    output$tbl.imputeMutateData <- DT::renderDataTable(NULL)
+  }
+})
+
+
+##########################
+# outlier detect functions
+##########################
+pgu.delegate$set("public", "outliersDetect", function(input, output, session){
+  if(self$status$query(processName = "naMutated")){
+    self$transformedData$numericData() %>%
+      private$.outliers$resetOutliersParameter()
+    private$.status$update(processName = "outliersDetected", value = TRUE)
+  }
+  else{
+    shiny::showNotification(paste("No Na's imputed. Please run imputation of missings first."),type = "error", duration = 10)
+  }
+})
+
+pgu.delegate$set("public", "updateOutliersDetectGraphic", function(input, output, session){
+  if(self$status$query(processName = "outliersDetected")){
+    output$plt.outliersDetectSummary <- shiny::renderPlot(
+      self$outliers$plotOutliersDistribution()
+    )
+  }
+  else{
+    output$plt.outliersDetectSummary <- shiny::renderPlot(NULL)
+  }
+})
+
+pgu.delegate$set("public", "updateOutliersDetectStatisticsTbl", function(input, output, session){
+  if(self$status$query(processName = "outliersDetected")){
+    output$tbl.outliersDetectStatistics <- DT::renderDataTable(
+      self$outliers$outliersStatistics %>%
+        DT::datatable(
+          extensions = "Buttons",
+          options = list(
+            scrollX = TRUE,
+            scrollY = '350px',
+            paging = FALSE,
+            dom = "Blfrtip",
+            buttons = list(list(
+              extend = 'csv',
+              filename = self$fileName$bluntFileName("outliersDetectionStatistics"),
+              text = "Download"
+            ))
+          ))
+    )
+  }
+  else{
+    output$tbl.outliersDetectStatistics <- DT::renderDataTable(NULL)
+  }
+})
+
+pgu.delegate$set("public", "updateOutliersDetectDetailTbl", function(input, output, session){
+  if(self$status$query(processName = "outliersDetected")){
+    dfOutlier <- self$outliers$outliers
+    idx <- dfOutlier[["measurement"]][!duplicated(dfOutlier[["measurement"]])]
+    output$tbl.outliersDetectDetail <- DT::renderDataTable(
+      self$filteredMetadata$rawData %>%
+        dplyr::right_join(self$transformedData$rawData, by = "Sample Name") %>%
+        dplyr::slice(idx) %>%
+        format.data.frame(scientific = TRUE, digits = 4) %>%
+        DT::datatable(
+          extensions = "Buttons",
+          options = list(
+            scrollX = TRUE,
+            scrollY = '350px',
+            paging = FALSE,
+            dom = "Blfrtip",
+            buttons = list(list(
+              extend = 'csv',
+              filename = self$fileName$bluntFileName("outliersDetectionDetail"),
+              text = "Download"
+            ))
+          ))
+    )
+  }
+  else{
+    output$tbl.outliersDetectDetail <- DT::renderDataTable(NULL)
+  }
+})
+
+pgu.delegate$set("public", "updateOutliersDetectDataTbl", function(input, output, session){
+  if(self$status$query(processName = "outliersDetected")){
+    output$tbl.outliersDetectData <- DT::renderDataTable(
+      self$filteredMetadata$rawData %>%
+        dplyr::right_join(self$transformedData$rawData, by = "Sample Name") %>%
+        format.data.frame(scientific = TRUE, digits = 4) %>%
+        DT::datatable(
+          extensions = "Buttons",
+          options = list(
+            scrollX = TRUE,
+            scrollY = '350px',
+            paging = FALSE,
+            dom = "Blfrtip",
+            buttons = list(list(
+              extend = 'csv',
+              filename = self$fileName$bluntFileName("outliersDetectionData"),
+              text = "Download"
+            ))
+          ))
+    )
+  }
+  else{
+    output$tbl.outliersDetectData <- DT::renderDataTable(NULL)
+  }
+})
+
+##########################
+# outlier mutate functions
+##########################
+pgu.delegate$set("public", "updateOutliersMutateFeature", function(input, output, session){
+  if(self$status$query(processName = "outliersDetected")){
+    shiny::updateSelectInput(session,
+                             "si.outliersMutateFeature",
+                             choices = self$outliers$outliersParameter[["features"]],
+                             selected = self$outliers$outliersParameter[["features"]][1]
+    )
+  }
+})
+
+pgu.delegate$set("public", "updateOutliersMutateMethod", function(input, output, session){
+  if(self$status$query(processName = "outliersDetected")){
+    shiny::updateSelectInput(session,
+                             "si.outliersMutateMethod",
+                             choices = self$outliers$cleaningAgentAlphabet,
+                             selected = self$outliers$cleaningAgent
+    )
+  }
+})
+
+pgu.delegate$set("public", "updateOutliersMutateSeed", function(input, output, session){
+  if(self$status$query(processName = "outliersDetected")){
+    shiny::updateNumericInput(session,
+                              "ni.outliersMutateSeed",
+                              value = self$outliers$seed)
+  }
+})
+
+pgu.delegate$set("public", "updateOutliersMutateIterations", function(input, output, session){
+  if(self$status$query(processName = "outliersDetected")){
+    shiny::updateNumericInput(session,
+                              "ni.outliersMutateIterations",
+                              value = self$outliers$iterations)
+  }
+})
+
+pgu.delegate$set("public", "updateOutliersMutateGui", function(input, output, session){
+  if(self$status$query(processName = "outliersDetected")){
+    self$updateOutliersMutateFeature(input, output, session)
+    self$updateOutliersMutateMethod(input, output, session)
+    self$updateOutliersMutateSeed(input, output, session)
+    self$updateOutliersMutateIterations(input, output, session)
+  }
+})
+
+pgu.delegate$set("public", "outliersMutate", function(input, output, session){
+  if(self$status$query(processName = "outliersDetected")){
+    private$.outliers$setCleaningAgent <- input$si.outliersMutateMethod
+    private$.outliers$setSeed <- input$ni.outliersMutateSeed
+    private$.outliers$setIterations <- input$ni.outliersMutateIterations
+    
+    progress <- shiny::Progress$new(session, min = 1, max = 2 * length(self$imputedData$numericFeatureNames))
+    progress$set(message = "Mutate Outliers", value = 0)
+    on.exit(progress$close())
+    
+    name  <- as.name("Sample Name")
+    private$.revisedData$setRawData <- self$imputedData$numericData() %>%
+      self$outliers$handleOutliers(progress = progress) %>%
+      tibble::add_column(!! name := self$imputedData$rawData %>%
+                           dplyr::select(!!name) %>%
+                           unlist() %>%
+                           as.character()) %>%
+      dplyr::select(c(!!name, self$imputedData$numericFeatureNames))
+    private$.cleanedData$setRawData <- self$revisedData$numericData() %>%
+      self$model$rescaleData() %>%
+      self$transformator$reverseMutateData() %>%
+      tibble::add_column(!! name := self$imputedData$rawData %>%
+                         dplyr::select(!!name) %>%
+                         unlist() %>%
+                         as.character()) %>%
+      dplyr::select(c(!!name, self$imputedData$numericFeatureNames))
+    private$.status$update(processName = "outliersMutated", value = TRUE)
+  }
+  else{
+    shiny::showNotification(paste("No outliers detected. Please detect outliers first."),type = "error", duration = 10)
+  }
+})
+
+pgu.delegate$set("public", "updateOutliersMutateFeatureDetailGraphic", function(input, output, session){
+  if(self$status$query(processName = "outliersMutated")){
+    output$plt.outliersMutateFeatureDetail <- shiny::renderPlot(
+      self$outliers$featurePlot(data = self$revisedData$numericData(),
+                                feature = input$si.outliersMutateFeature)
+    )
+  }
+  else{
+    output$plt.outliersMutateFeatureDetail <- shiny::renderPlot(NULL)
+  }
+})
+
+pgu.delegate$set("public", "updateOutliersMutateFeatureDetailTbl", function(input, output, session){
+  if (self$status$query(processName = "outliersMutated")){
+    output$tbl.outliersMutateFeatureDetail <- DT::renderDataTable(
+      self$filteredMetadata$rawData %>%
+        dplyr::right_join(self$revisedData$rawData %>%
+                            dplyr::select(c("Sample Name", input$si.outliersMutateFeature))  ,
+                          by = "Sample Name") %>%
+        dplyr::slice(self$outliers$outliersIdxByFeature(feature = input$si.outliersMutateFeature)) %>%
+        format.data.frame(scientific = TRUE, digits = 4) %>%
+        DT::datatable(
+          extensions = "Buttons",
+          options = list(
+            scrollX = TRUE,
+            scrollY = '350px',
+            paging = FALSE,
+            dom = "Blfrtip",
+            buttons = list(list(
+              extend = 'csv',
+              filename = self$fileName$bluntFileName("outliersMutationDetails"),
+              text = "Download"
+            ))
+          ))
+    ) 
+  }
+  else{
+    output$tbl.outliersMutateFeatureDetail <- DT::renderDataTable(NULL)
+  }
+})
+
+pgu.delegate$set("public", "updateOutliersMutateDetailTbl", function(input, output, session){
+  if(self$status$query(processName = "outliersMutated")){
+    dfOutlier <- self$outliers$outliers
+    idx <- dfOutlier[["measurement"]][!duplicated(dfOutlier[["measurement"]])]
+    output$tbl.outliersMutateDetail <- DT::renderDataTable(
+      self$filteredMetadata$rawData %>%
+        dplyr::right_join(self$revisedData$rawData, by = "Sample Name") %>%
+        dplyr::slice(idx) %>%
+        format.data.frame(scientific = TRUE, digits = 4) %>%
+        DT::datatable(
+          extensions = "Buttons",
+          options = list(
+            scrollX = TRUE,
+            scrollY = '350px',
+            paging = FALSE,
+            dom = "Blfrtip",
+            buttons = list(list(
+              extend = 'csv',
+              filename = self$fileName$bluntFileName("outliersMutationDetail"),
+              text = "Download"
+            ))
+          ))
+    )
+  }
+  else{
+    output$tbl.outliersMutateDetail <- DT::renderDataTable(NULL)
+  }
+})
+
+pgu.delegate$set("public", "updateOutliersMutateDataTbl", function(input, output, session){
+  if(self$status$query(processName = "outliersMutated")){
+    output$tbl.outliersMutateData <- DT::renderDataTable(
+      self$filteredMetadata$rawData %>%
+        dplyr::right_join(self$revisedData$rawData, by = "Sample Name") %>%
+        format.data.frame(scientific = TRUE, digits = 4) %>%
+        DT::datatable(
+          extensions = "Buttons",
+          options = list(
+            scrollX = TRUE,
+            scrollY = '350px',
+            paging = FALSE,
+            dom = "Blfrtip",
+            buttons = list(list(
+              extend = 'csv',
+              filename = self$fileName$bluntFileName("outliersMutationData"),
+              text = "Download"
+            ))
+          ))
+    )
+  }
+  else{
+    output$tbl.outliersMutateData <- DT::renderDataTable(NULL)
+  }
+})
+
+#######################
+# correlation functions
+#######################
+pgu.delegate$set("public", "correlate", function(input, output, session){
+  if(self$status$query(processName = "outliersMutated")){
+    progress <- shiny::Progress$new(session, min = 1, max  = 3 * length(self$imputedData$numericFeatureNames) ** 2)
+    progress$set(message = "Calculate Correlation", value = 1)
+    on.exit(progress$close())
+    # self$cleanedData$numericData() %>%
+    self$revisedData$numericData() %>%
+      dplyr::select_if(function(x){!all(is.na(x))}) %>%
+      private$.correlator$resetCorrelator(progress = progress)
+    private$.status$update(processName = "correlated", value = TRUE)
+  }
+  else{
+    shiny::showNotification(paste("No outliers revised. Please revise outliers first."),type = "error", duration = 10)
+  }
+})
+
+pgu.delegate$set("public", "updateCorrelationMatrixRTbl", function(input, output, session){
+  if(self$status$query(processName = "correlated")){
+    output$tbl.correlationMatrixR <- DT::renderDataTable(
+      self$correlator$printRTbl() %>%
+        format.data.frame(scientific = TRUE, digits = 4) %>%
+        DT::datatable(
+          extensions = "Buttons",
+          options = list(
+            scrollX = TRUE,
+            scrollY = '350px',
+            paging = FALSE,
+            dom = "Blfrtip",
+            buttons = list(list(
+              extend = 'csv',
+              filename = self$fileName$bluntFileName("CorrelationMatrix_R"),
+              text = "Download"
+            )),
+            autoWidth = TRUE,
+            columnDefs = list(list(width = '50px', targets = "_all"))
+          ))
+    )
+  }
+  else{
+    output$tbl.correlationMatrixR <- DT::renderDataTable(NULL)
+  }
+})
+
+pgu.delegate$set("public", "updateCorrelationMatrixPPearsonTbl", function(input, output, session){
+  if(self$status$query(processName = "correlated")){
+    output$tbl.correlationMatrixPPearson <- DT::renderDataTable(
+      self$correlator$printPPearsonTbl() %>%
+        format.data.frame(scientific = TRUE, digits = 4) %>%
+        DT::datatable(
+          extensions = "Buttons",
+          options = list(
+            scrollX = TRUE,
+            scrollY = '350px',
+            paging = FALSE,
+            dom = "Blfrtip",
+            buttons = list(list(
+              extend = 'csv',
+              filename = self$fileName$bluntFileName("CorrelationMatrix_P_Pearson"),
+              text = "Download"
+            )),
+            autoWidth = TRUE,
+            columnDefs = list(list(width = '50px', targets = "_all"))
+          ))
+    )
+  }
+  else{
+    output$tbl.correlationMatrixPPearson <- DT::renderDataTable(NULL)
+  }
+})
+
+pgu.delegate$set("public", "updateCorrelationMatrixTauTbl", function(input, output, session){
+  if(self$status$query(processName = "correlated")){
+    output$tbl.correlationMatrixTau <- DT::renderDataTable(
+      self$correlator$printTauTbl() %>%
+        format.data.frame(scientific = TRUE, digits = 4) %>%
+        DT::datatable(
+          extensions = "Buttons",
+          options = list(
+            scrollX = TRUE,
+            scrollY = '350px',
+            paging = FALSE,
+            dom = "Blfrtip",
+            buttons = list(list(
+              extend = 'csv',
+              filename = self$fileName$bluntFileName("CorrelationMatrix_Tau"),
+              text = "Download"
+            )),
+            autoWidth = TRUE,
+            columnDefs = list(list(width = '50px', targets = "_all"))
+          ))
+    )
+  }
+  else{
+    output$tbl.correlationMatrixTau <- DT::renderDataTable(NULL)
+  }
+})
+
+pgu.delegate$set("public", "updateCorrelationMatrixPKendallTbl", function(input, output, session){
+  if(self$status$query(processName = "correlated")){
+    output$tbl.correlationMatrixPKendall <- DT::renderDataTable(
+      self$correlator$printPKendallTbl() %>%
+        format.data.frame(scientific = TRUE, digits = 4) %>%
+        DT::datatable(
+          extensions = "Buttons",
+          options = list(
+            scrollX = TRUE,
+            scrollY = '350px',
+            paging = FALSE,
+            dom = "Blfrtip",
+            buttons = list(list(
+              extend = 'csv',
+              filename = self$fileName$bluntFileName("CorrelationMatrix_P_Kendall"),
+              text = "Download"
+            )),
+            autoWidth = TRUE,
+            columnDefs = list(list(width = '50px', targets = "_all"))
+          ))
+    )
+  }
+  else{
+    output$tbl.correlationMatrixPKendall <- DT::renderDataTable(NULL)
+  }
+})
+
+pgu.delegate$set("public", "updateCorrelationMatrixRhoTbl", function(input, output, session){
+  if(self$status$query(processName = "correlated")){
+    output$tbl.correlationMatrixRho <- DT::renderDataTable(
+      self$correlator$printRhoTbl() %>%
+        format.data.frame(scientific = TRUE, digits = 4) %>%
+        DT::datatable(
+          extensions = "Buttons",
+          options = list(
+            scrollX = TRUE,
+            scrollY = '350px',
+            paging = FALSE,
+            dom = "Blfrtip",
+            buttons = list(list(
+              extend = 'csv',
+              filename = self$fileName$bluntFileName("CorrelationMatrix_Rho"),
+              text = "Download"
+            )),
+            autoWidth = TRUE,
+            columnDefs = list(list(width = '50px', targets = "_all"))
+          ))
+    )
+  }
+  else{
+    output$tbl.correlationMatrixRho <- DT::renderDataTable(NULL)
+  }
+})
+
+pgu.delegate$set("public", "updateCorrelationMatrixPSpearmanTbl", function(input, output, session){
+  if(self$status$query(processName = "correlated")){
+    output$tbl.correlationMatrixPSpearman <- DT::renderDataTable(
+      self$correlator$printPSpearmanTbl() %>%
+        format.data.frame(scientific = TRUE, digits = 4) %>%
+        DT::datatable(
+          extensions = "Buttons",
+          options = list(
+            scrollX = TRUE,
+            scrollY = '350px',
+            paging = FALSE,
+            dom = "Blfrtip",
+            buttons = list(list(
+              extend = 'csv',
+              filename = self$fileName$bluntFileName("CorrelationMatrix_P_Spearman"),
+              text = "Download"
+            )),
+            autoWidth = TRUE,
+            columnDefs = list(list(width = '50px', targets = "_all"))
+          ))
+    )
+  }
+  else{
+    output$tbl.correlationMatrixPSpearman <- DT::renderDataTable(NULL)
+  }
+})
+
+######################
+# regression functions
+######################
+pgu.delegate$set("public", "regression", function(input, output, session){
+  if(self$status$query(processName = "correlated")){
+    progress <- shiny::Progress$new(session, min = 1, max = length(self$cleanedData$numericFeatureNames)**2)
+    progress$set(message = "Calculate Regression", value = 1)
+    on.exit(progress$close())
+    # private$.regressor$resetRegressor(data = self$cleanedData$numericData(), progress = progress)
+    private$.regressor$resetRegressor(data = self$revisedData$numericData(), progress = progress)
+    private$.status$update(processName = "regression", value = TRUE) 
+  }
+  else{
+    shiny::showNotification(paste("No outliers revised. Please revise outliers first."),type = "error", duration = 10)
+  }
+})
+
+pgu.delegate$set("public", "updateRegressionAbscissa", function(input, output, session){
+  if(self$status$query(processName = "regression")){
+    shiny::updateSelectInput(session,
+                             "si.regressionAbs",
+                             choices = self$regressor$featureNames,
+                             selected = self$regressor$featureNames[1]
+    )
+  }
+})
+
+pgu.delegate$set("public", "updateRegressionOrdinate", function(input, output, session){
+  if(self$status$query(processName = "regression")){
+    ordinateFeatureNames <- self$regressor$featureNames[-self$regressor$featureIdx(input$si.regressionAbs)]
+    shiny::updateSelectInput(session,
+                             "si.regressionOrd",
+                             choices = ordinateFeatureNames,
+                             selected = ordinateFeatureNames[1]
+    )
+  }
+})
+
+pgu.delegate$set("public", "updateRegressionGui", function(input, output, session){
+  self$updateRegressionAbscissa(input, output, session)
+  self$updateRegressionOrdinate(input, output, session)
+})
+
+pgu.delegate$set("public", "updateRegressionGraphic", function(input, output, session){
+  if(self$status$query(processName = "regression")){
+    output$plt.regressionFeature <- shiny::renderPlot(
+      # self$regressor$plotModel(data = self$cleanedData$numericData(),
+      self$regressor$plotModel(data = self$revisedData$numericData(),
+                               abscissa = input$si.regressionAbs,
+                               ordinate = input$si.regressionOrd)
+      )
+  }
+  else{
+    output$plt.regressionFeature <- shiny::renderPlot(NULL)
+  }
+})
+
+pgu.delegate$set("public", "updateRegressionModelTbl", function(input, output, session){
+  if(self$status$query(processName = "regression")){
+    output$tbl.regressionFeature <- DT::renderDataTable(
+      self$regressor$printModel(abscissa = input$si.regressionAbs, ordinate = input$si.regressionOrd) %>%
+        # format.data.frame(scientific = TRUE, digits = 4) %>%
+        DT::datatable(
+          extensions = "Buttons",
+          options = list(
+            scrollX = TRUE,
+            scrollY = '350px',
+            paging = FALSE,
+            dom = "Blfrtip",
+            buttons = list(list(
+              extend = 'csv',
+              filename = self$fileName$bluntFileName("RegressionMatrix_Model"),
+              text = "Download"
+            )),
+            autoWidth = TRUE,
+            columnDefs = list(list(width = '50px', targets = "_all"))
+          ))
+    )
+  }
+  else{
+    output$tbl.regressionFeature <- DT::renderDataTable(NULL)
+  }
+})
+
+pgu.delegate$set("public", "updateRegressionInterceptTbl", function(input, output, session){
+  if(self$status$query(processName = "regression")){
+    output$tbl.regressionIntercept <- DT::renderDataTable(
+      self$regressor$printInterceptTbl() %>%
+        format.data.frame(scientific = TRUE, digits = 4) %>%
+        DT::datatable(
+          extensions = "Buttons",
+          options = list(
+            scrollX = TRUE,
+            scrollY = '350px',
+            paging = FALSE,
+            dom = "Blfrtip",
+            buttons = list(list(
+              extend = 'csv',
+              filename = self$fileName$bluntFileName("RegressionMatrix_Intercept"),
+              text = "Download"
+            )),
+            autoWidth = TRUE,
+            columnDefs = list(list(width = '50px', targets = "_all"))
+          ))
+    )
+  }
+  else{
+    output$tbl.regressionIntercept <- DT::renderDataTable(NULL)
+  }
+})
+
+pgu.delegate$set("public", "updateRegressionPInterceptTbl", function(input, output, session){
+  if(self$status$query(processName = "regression")){
+    output$tbl.regressionPIntercept <- DT::renderDataTable(
+      self$regressor$printPInterceptTbl() %>%
+        format.data.frame(scientific = TRUE, digits = 4) %>%
+        DT::datatable(
+          extensions = "Buttons",
+          options = list(
+            scrollX = TRUE,
+            scrollY = '350px',
+            paging = FALSE,
+            dom = "Blfrtip",
+            buttons = list(list(
+              extend = 'csv',
+              filename = self$fileName$bluntFileName("RegressionMatrix_P_Intercept"),
+              text = "Download"
+            )),
+            autoWidth = TRUE,
+            columnDefs = list(list(width = '50px', targets = "_all"))
+          ))
+    )
+  }
+  else{
+    output$tbl.regressionPIntercept <- DT::renderDataTable(NULL)
+  }
+})
+
+pgu.delegate$set("public", "updateRegressionSlopeTbl", function(input, output, session){
+  if(self$status$query(processName = "regression")){
+    output$tbl.regressionSlope <- DT::renderDataTable(
+      self$regressor$printSlopeTbl() %>%
+        format.data.frame(scientific = TRUE, digits = 4) %>%
+        DT::datatable(
+          extensions = "Buttons",
+          options = list(
+            scrollX = TRUE,
+            scrollY = '350px',
+            paging = FALSE,
+            dom = "Blfrtip",
+            buttons = list(list(
+              extend = 'csv',
+              filename = self$fileName$bluntFileName("RegressionMatrix_Slope"),
+              text = "Download"
+            )),
+            autoWidth = TRUE,
+            columnDefs = list(list(width = '50px', targets = "_all"))
+          ))
+    )
+  }
+  else{
+    output$tbl.regressionSlope <- DT::renderDataTable(NULL)
+  }
+})
+
+pgu.delegate$set("public", "updateRegressionPSlopeTbl", function(input, output, session){
+  if(self$status$query(processName = "regression")){
+    output$tbl.regressionPSlope <- DT::renderDataTable(
+      self$regressor$printPSlopeTbl() %>%
+        format.data.frame(scientific = TRUE, digits = 4) %>%
+        DT::datatable(
+          extensions = "Buttons",
+          options = list(
+            scrollX = TRUE,
+            scrollY = '350px',
+            paging = FALSE,
+            dom = "Blfrtip",
+            buttons = list(list(
+              extend = 'csv',
+              filename = self$fileName$bluntFileName("RegressionMatrix_P_Slope"),
+              text = "Download"
+            )),
+            autoWidth = TRUE,
+            columnDefs = list(list(width = '50px', targets = "_all"))
+          ))
+    )
+  }
+  else{
+    output$tbl.regressionPSlope <- DT::renderDataTable(NULL)
+  }
+})
+
 ############################
 # numerical output functions
 ############################
@@ -1401,6 +2496,136 @@ pgu.delegate$set("public", "updateFilterMissingsTbl", function(input, output, se
   }
 })
 
-############################
-# graphical output functions
-############################
+#########################
+# data export functions #
+#########################
+pgu.delegate$set("public", "exportFileName", function(input, output, session){
+  private$.fileName$setSuffix <- "xlsx"
+  private$.fileName$updateTimeString()
+  private$.fileName$exportFileName() %>%
+    return()
+})
+
+pgu.delegate$set("public", "exportData", function(file){
+  if(self$status$query(processName = "outliersMutated")){
+    private$.exporter$setFileName <- file
+    analysis_parameter <- tibble::tibble(
+      parameter = c("value"),
+      loq_na_handling = c(self$loq$naHandlingAgent),
+      lloq_substitute = c(self$loq$lloqSubstituteAgent),
+      uloq_substitute = c(self$loq$uloqSubstituteAgent),
+      imputation_method = c(self$imputer$imputationAgent),
+      imputation_seed = c(self$imputer$seed),
+      imputation_iterations = c(self$imputer$iterations),
+      outlier_method = c(self$outliers$cleaningAgent),
+      outier_seed = c(self$outliers$seed),
+      outlier_iterations = c(self$outliers$iterations)
+    )
+    
+    list(raw_data = self$cleanedData$rawData,
+         loq = self$loq$loq,
+         metadata = self$filteredMetadata$rawData,
+         transfromed_data = self$revisedData$rawData,
+         trafo_parameter = self$transformator$trafoParameter,
+         model_parameter = self$model$modelParameterData(),
+         model_quality = self$model$modelQualityData(),
+         model_statistics = self$model$testResultData(),
+         analysis_parameter = analysis_parameter
+         ) %>%
+           self$exporter$writeDataToExcel()
+  }
+})
+
+###################################
+# update graphical user interface #
+###################################
+pgu.delegate$set("public", "hideOutdatedResults", function(input, output, session){
+  if(!private$.status$query(processName = "dataImported")){
+    output$tbl.rawDataInfo <- DT::renderDataTable(NULL)
+    output$tbl.loqInfo <- DT::renderDataTable(NULL)
+    output$tbl.rawDataStatistics <- DT::renderDataTable(NULL)
+    output$tbl.filter <- DT::renderDataTable(NULL)
+  }
+  if(!private$.status$query(processName = "metadataImported")){
+    output$tbl.metadataInfo <- DT::renderDataTable(NULL)
+  }
+  if(!private$.status$query(processName = "dataFiltered")){
+    output$plt.exploreGraphic <- shiny::renderPlot(NULL)
+    output$plt.exploreAbscissaGraphic <- shiny::renderPlot(NULL)
+    output$plt.exploreOrdinateGraphic <- shiny::renderPlot(NULL)
+    output$tbl.exploreAbscissaStatistics <- DT::renderDataTable(NULL)
+    output$tbl.exploreOrdinateStatistics <- DT::renderDataTable(NULL)
+    output$tbl.filterStatistics <- DT::renderDataTable(NULL)
+    output$tbl.filterMissings <- DT::renderDataTable(NULL)
+  }
+  if(!private$.status$query(processName = "loqDetected")){
+    output$tbl.loqDetectStatistics <- DT::renderDataTable(NULL)
+    output$tbl.loqDetectOutlier <- DT::renderDataTable(NULL)
+    output$tbl.loqDetectData <- DT::renderDataTable(NULL)
+    output$plt.loqDetectStatistics <- shiny::renderPlot(NULL)
+    output$plt.loqDetectFeature <- shiny::renderPlot(NULL)
+    output$tbl.loqDetectFeature <- DT::renderDataTable(NULL)
+  }
+  if(!private$.status$query(processName = "loqMutated")){
+    output$tbl.loqMutateStatistics <- DT::renderDataTable(NULL)
+    output$tbl.loqMutateOutlier <- DT::renderDataTable(NULL)
+    output$tbl.loqMutateData <- DT::renderDataTable(NULL)
+    output$plt.loqMutateStatistics <- shiny::renderPlot(NULL)
+    output$tbl.loqMutateFeature <- DT::renderDataTable(NULL)
+    output$plt.loqMutateFeature <- shiny::renderPlot(NULL)
+  }
+  if(!self$status$query(processName = "modelOptimized")){
+    output$tbl.trafoDetectTypes <- DT::renderDataTable(NULL)
+    output$tbl.trafoDetectParameters <- DT::renderDataTable(NULL)
+  }
+  if(!self$status$query(processName = "modelDefined")){
+    output$plt.trafoMutateFeature <- shiny::renderPlot(NULL)
+    output$tbl.trafoMutateFeatureParameter <- DT::renderDataTable(NULL)
+    output$tbl.trafoMutateFeatureQuality <- DT::renderDataTable(NULL)
+    output$tbl.trafoMutateGlobalParameter <- DT::renderDataTable(NULL)
+    output$tbl.trafoMutateGlobalModel <- DT::renderDataTable(NULL)
+    output$tbl.trafoMutateGlobalQuality <- DT::renderDataTable(NULL)
+    output$tbl.trafoMutateGlobalTests <- DT::renderDataTable(NULL)
+    output$tbl.trafoMutateGlobalData <- DT::renderDataTable(NULL)
+  }
+  if(!self$status$query(processName = "naDetected")){
+    output$plt.imputeDetectSummary <- shiny::renderPlot(NULL)
+    output$tbl.imputeDetectStatistics <- DT::renderDataTable(NULL)
+    output$tbl.imputeDetectDetail <- DT::renderDataTable(NULL)
+    output$tbl.imputeDetectData <- DT::renderDataTable(NULL)
+  }
+  if(!self$status$query(processName = "naMutated")){
+    output$plt.imputeMutateFeatureDetail <- shiny::renderPlot(NULL)
+    output$tbl.imputeMutateFeatureDetail <- DT::renderDataTable(NULL)
+    output$tbl.imputeMutateDetail <- DT::renderDataTable(NULL)
+    output$tbl.imputeMutateData <- DT::renderDataTable(NULL)
+  }
+  if(!self$status$query(processName = "outliersDetected")){
+    output$plt.outliersDetectSummary <- shiny::renderPlot(NULL)
+    output$tbl.outliersDetectStatistics <- DT::renderDataTable(NULL)
+    output$tbl.outliersDetectDetail <- DT::renderDataTable(NULL)
+    output$tbl.outliersDetectData <- DT::renderDataTable(NULL)
+  }
+  if(!self$status$query(processName = "outliersMutated")){
+    output$plt.outliersMutateFeatureDetail <- shiny::renderPlot(NULL)
+    output$tbl.outliersMutateFeatureDetail <- DT::renderDataTable(NULL)
+    output$tbl.outliersMutateDetail <- DT::renderDataTable(NULL)
+    output$tbl.outliersMutateData <- DT::renderDataTable(NULL)
+  }
+  if(!self$status$query(processName = "correlated")){
+    output$tbl.correlationMatrixR <- DT::renderDataTable(NULL)
+    output$tbl.correlationMatrixPPearson <- DT::renderDataTable(NULL)
+    output$tbl.correlationMatrixTau <- DT::renderDataTable(NULL)
+    output$tbl.correlationMatrixPKendall <- DT::renderDataTable(NULL)
+    output$tbl.correlationMatrixRho <- DT::renderDataTable(NULL)
+    output$tbl.correlationMatrixPSpearman <- DT::renderDataTable(NULL)
+  }
+  if(!self$status$query(processName = "regression")){
+    output$plt.regressionFeature <- shiny::renderPlot(NULL)
+    output$tbl.regressionFeature <- DT::renderDataTable(NULL)
+    output$tbl.regressionIntercept <- DT::renderDataTable(NULL)
+    output$tbl.regressionPIntercept <- DT::renderDataTable(NULL)
+    output$tbl.regressionSlope <- DT::renderDataTable(NULL)
+    output$tbl.regressionPSlope <- DT::renderDataTable(NULL)
+  }
+})

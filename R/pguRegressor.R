@@ -1,7 +1,7 @@
 library("R6")
 library("tidyverse")
 library("stats")
-#library("robust")
+library("robust")
 library("DT")
 library("gridExtra")
 
@@ -15,9 +15,7 @@ pgu.regressor <- R6::R6Class("pgu.regressor",
                                  .pIntercept = "matrix",
                                  .slope = "matrix",
                                  .pSlope = "matrix",
-                                 .abscissa = "character",
-                                 .ordinate = "character",
-                                 .model = "lm"
+                                 .model = "lmRob"
                                  #.model = "lmRob"
                                ),
                               ##################
@@ -27,12 +25,15 @@ pgu.regressor <- R6::R6Class("pgu.regressor",
                                  featureNames = function(){
                                    return(private$.featureNames)
                                  },
-                                 setFeaturNames = function(names = "character"){
+                                 setFeatureNames = function(names = "character"){
                                    private$.featureNames <- names
                                    private$.intercept <- self$resetMatrix(value = 0)
                                    private$.pIntercept <- self$resetMatrix(value = 1)
                                    private$.slope <- self$resetMatrix(value = 0)
                                    private$.pSlope <- self$resetMatrix(value = 1)
+                                 },
+                                 ordinateFeatureNames = function(){
+                                   return(private$.ordinateFeatureNames)
                                  },
                                  intercept = function(){
                                    return(private$.intercept)
@@ -45,18 +46,6 @@ pgu.regressor <- R6::R6Class("pgu.regressor",
                                  },
                                  pSlope = function(){
                                    return(private$.pSlope)
-                                 },
-                                 abscissa = function(){
-                                   return(private$.abscissa)
-                                 },
-                                 setAbscissa = function(feature = "character"){
-                                   private$.abscissa <- feature
-                                 },
-                                 ordinate = function(){
-                                   return(private$.ordinate)
-                                 },
-                                 setOrdinate = function(feature = "character"){
-                                   private$.ordinate <- feature
                                  },
                                  model = function(){
                                    return(private$.model)
@@ -103,13 +92,9 @@ pgu.regressor <- R6::R6Class("pgu.regressor",
 # public functions
 ####################
 pgu.regressor$set("public", "resetRegressor", function(data = "tbl_df", progress = "Progress"){
-  private$.featureNames <- data %>%
+  self$setFeatureNames <- data %>%
     dplyr::select_if(is.numeric) %>%
     colnames()
-  private$.intercept <- self$resetMatrix(value = 0)
-  private$.pIntercept <- self$resetMatrix(value = 1)
-  private$.slope <- self$resetMatrix(value = 0)
-  private$.pSlope <- self$resetMatrix(value = 1)
   self$createRegressionMatrix(data, progress)
 })
 
@@ -140,101 +125,93 @@ pgu.regressor$set("public", "resetMatrix", function(value = "numeric"){
 # helper functions
 ##################
 pgu.regressor$set("public", "featureIdx", function(feature = "character"){
-  idx <- match(feature, self$featureNames)
+  idx <- match(c(feature), self$featureNames)
   if(is.na(idx)){
-    rString <- sprintf("\nWarning in pgu.optimizer: feature %s is not known\n",
+    rString <- sprintf("\nWarning in pgu.regressor: feature %s is not known\n",
                        feature)
     cat(rString)
   }
   return(idx)
 })
 
+pgu.regressor$set("public", "featureIsValid", function(feature = "character"){
+  idx <- self$featureIdx(feature)
+  if(is.na(idx)){
+    return(FALSE)
+  }
+  else{
+    return(TRUE)
+  }
+})
 
-#############################
-# linear regression functions
-#############################
-# pgu.regressor$set("public", "createModel", function(data = "tbl_df"){
-#   if(self$abscissa != self$ordinate){
-#     private$.model <- paste(self$ordinate, self$abscissa, sep = "~") %>%
-#       stats::as.formula() %>%
-#       stats::lm(data, na.action = na.omit)
-#   }
-# })
-# 
-# 
-# pgu.regressor$set("public", "createRegressionMatrix", function(data = "tbl_df"){
-#   for (abs in self$featureNames){
-#     for (ord in self$featureNames){
-#       private$.abscissa <- abs
-#       private$.ordinate <- ord
-#       if(abs != ord){
-#         self$createModel(data)
-#         private$.intercept[ord, abs] <- as.numeric(c(summary(self$model)$coefficients[1,1]))
-#         private$.pIntercept[ord, abs] <-as.numeric(c(summary(self$model)$coefficients[1,4]))
-#         private$.slope[ord, abs] <- as.numeric(c(summary(self$model)$coefficients[2,1]))
-#         private$.pSlope[ord, abs] <-as.numeric(c(summary(self$model)$coefficients[2,4]))
-#       }
-#     }
-#   }
-# })
-
+pgu.regressor$set("public", "featurePairIsValid", function(abscissa = "character", ordinate = "character"){
+  val <- TRUE
+  if(!self$featureIsValid(abscissa)){val <- FALSE}
+  if(!self$featureIsValid(ordinate)){val <- FALSE}
+  if(abscissa == ordinate){val <- FALSE}
+  return(val)
+})
 
 ####################################
 # robust libear regression functions
 ####################################
-pgu.regressor$set("public", "createModel", function(data = "tbl_df"){
-  if(self$abscissa != self$ordinate){
-    private$.model <- paste(self$ordinate, self$abscissa, sep = "~") %>%
+pgu.regressor$set("public", "createModel", function(data = "tbl_df", abscissa = "character", ordinate = "character"){
+  if(self$featurePairIsValid(abscissa, ordinate)){
+    ord <- paste0("`", ordinate, "`")
+    abs <- paste0("`", abscissa, "`")
+    private$.model <- paste(ord, abs, sep = "~") %>%
       stats::as.formula() %>%
-      stats::lm(data, na.action = na.omit)
-      #robust::lmRob(data, na.action = na.omit)
+      # stats::lm(data, na.action = na.omit)
+      robust::lmRob(data, na.action = na.omit)
   }
 })
 
 
 pgu.regressor$set("public", "createRegressionMatrix", function(data = "tbl_df", progress = "Progress"){
-  for (abs in self$featureNames){
-    for (ord in self$featureNames){
+  for (abscissa in self$featureNames){
+    for (ordinate in self$featureNames){
       if(("shiny" %in% (.packages())) & (class(progress)[1] == "Progress")){
         progress$inc(1)
       }
-      private$.abscissa <- abs
-      private$.ordinate <- ord
-      if(abs != ord){
-        self$createModel(data)
-        private$.intercept[ord, abs] <- as.numeric(c(summary(self$model)$coefficients[1,1]))
-        private$.pIntercept[ord, abs] <-as.numeric(c(summary(self$model)$coefficients[1,4]))
-        private$.slope[ord, abs] <- as.numeric(c(summary(self$model)$coefficients[2,1]))
-        private$.pSlope[ord, abs] <-as.numeric(c(summary(self$model)$coefficients[2,4]))
+      abs <- sym(abscissa)
+      ord <- sym(ordinate)
+      if(self$featurePairIsValid(abscissa, ordinate)){
+        self$createModel(data, abscissa, ordinate)
+        private$.intercept[[as.name(ord), as.name(abs)]] <- as.numeric(c(summary(self$model)$coefficients[1,1]))
+        private$.pIntercept[[as.name(ord), as.name(abs)]] <-as.numeric(c(summary(self$model)$coefficients[1,4]))
+        private$.slope[[as.name(ord), as.name(abs)]] <- as.numeric(c(summary(self$model)$coefficients[2,1]))
+        private$.pSlope[[as.name(ord), as.name(abs)]] <-as.numeric(c(summary(self$model)$coefficients[2,4]))
+      }
+      else{
+        private$.intercept[[as.name(ord), as.name(abs)]] <- NA
+        private$.pIntercept[[as.name(ord), as.name(abs)]] <-NA
+        private$.slope[[as.name(ord), as.name(abs)]] <- NA
+        private$.pSlope[[as.name(ord), as.name(abs)]] <-NA
       }
     }
   }
 })
 
-######################
-# single feature Model
-######################
-pgu.regressor$set("public", "createFeatureModel", function(data = "tbl_df"){
-  self$createModel(data)
-})
-
 #################
 # print functions
 #################
-pgu.regressor$set("public","printModel", function(){
-  df <- data.frame(
-    abscissa = self$abscissa,
-    ordinate = self$ordinate,
-    intercept = self$intercept[self$ordinate, self$abscissa],
-    p.Intercept = self$pIntercept[self$ordinate, self$abscissa],
-    slope = self$slope[self$ordinate, self$abscissa],
-    p.Slope = self$pSlope[self$ordinate, self$abscissa])%>%
-    t() %>%
-    as.data.frame() %>%
-    tibble::rownames_to_column("regression parameter") %>%
-    tibble::as_tibble() %>%
-    dplyr::rename(value = "V1")
-  return(df)
+pgu.regressor$set("public","printModel", function(abscissa = "character", ordinate = "character"){
+  t <- NULL
+  if(self$featurePairIsValid(abscissa, ordinate)){
+  abs <- sym(abscissa)
+  ord <- sym(ordinate)
+  para <- c("abscissa", "ordinate", "intercept", "p.intercept", "slope", "p.slope")
+  val <- c(abscissa,
+           ordinate,
+           sprintf("%.3e", self$intercept[[as.name(ord), as.name(abs)]]),
+           sprintf("%.3e", self$pIntercept[[as.name(ord), as.name(abs)]]),
+           sprintf("%.3e", self$slope[[as.name(ord), as.name(abs)]]),
+           sprintf("%.3e", self$pSlope[[as.name(ord), as.name(abs)]])
+             )
+  t <- tibble::tibble(parameter = para,
+                 vlaue = val)
+  }
+  return(t)
 })
 
 pgu.regressor$set("public", "printInterceptTbl", function(){
@@ -274,19 +251,24 @@ pgu.regressor$set("public", "printPSlopeTbl", function(){
 # plot functions
 ################
 pgu.regressor$set("private", "plotRegression", function(){
+  abs <- sym(names(self$model$model)[2])
+  ord <- sym(names(self$model$model)[1])
   p <- ggplot2::ggplot(data = self$model$model,
-                       aes_string(x=names(self$model$model)[2],
-                                  y=names(self$model$model)[1]),
+                       aes_string(x=as.name(abs),
+                                  y=as.name(ord)),
                        na.rm = TRUE)+
     ggplot2::geom_point()+
-    ggplot2::stat_smooth(method = "lm")
+    ggplot2::stat_smooth(method = "lm") +
+    ggplot2::ggtitle("Robust Model\nLinear Regression")
   return(p)
 })
 
 pgu.regressor$set("private", "plotResidualDist", function(){
   p <- tibble::enframe(self$model$residuals, name=c("index")) %>%
     ggplot2::ggplot(mapping=ggplot2::aes_string(x="value"), na.rm=TRUE)+
-    ggplot2::geom_histogram()
+    ggplot2::geom_histogram() +
+    ggplot2::ggtitle("Residuals\nBar Plot") +
+    ggplot2::theme(axis.title.y = element_blank())
   return(p)
 })
 
@@ -294,6 +276,7 @@ pgu.regressor$set("private", "plotResidualBox", function(){
   p <- tibble::enframe(self$model$residuals, name=c("index")) %>%
     ggplot2::ggplot(mapping=ggplot2::aes_string(y="value"), na.rm=TRUE)+
     ggplot2::geom_boxplot()+
+    ggplot2::ggtitle("Residuals\nBox Plot") +
     ggplot2::theme(axis.title.x = element_blank(),
                    axis.text.x = element_blank(),
                    axis.ticks.x = element_blank(),
@@ -301,10 +284,14 @@ pgu.regressor$set("private", "plotResidualBox", function(){
   return(p)
 })
 
-pgu.regressor$set("public", "plotResult", function(){
-  p1 <- private$plotRegression()
-  p2 <- private$plotResidualBox()
-  p3 <- private$plotResidualDist()
-  p <- gridExtra::grid.arrange(p1,p2,p3, layout_matrix = rbind(c(1,1,1,2),c(1,1,1,3)))
+pgu.regressor$set("public", "plotModel", function(data = "tbl_df", abscissa = "character", ordinate = "character"){
+  p <- NULL
+  if(self$featurePairIsValid(abscissa, ordinate)){
+    self$createModel(data, abscissa, ordinate)
+    p1 <- private$plotRegression()
+    p2 <- private$plotResidualBox()
+    p3 <- private$plotResidualDist()
+    p <- gridExtra::grid.arrange(p1,p2,p3, layout_matrix = rbind(c(1,1,1,2),c(1,1,1,3)))
+  }
   return(p)
 })

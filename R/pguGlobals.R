@@ -18,11 +18,12 @@ sLogLikelihood = function(mu="numeric", sigma="numeric"){
 
 transformTibble = function(obj = "tbl_df"){
   vNames <- colnames(obj)[-1]
-  cNames <- obj[[1,]]
+  cNames <- obj %>%
+    dplyr::pull(1)
   obj[-1] %>%
     as.data.frame() %>%
     t() %>%
-    tibble::tibble() %>%
+    tibble::as_tibble() %>%
     dplyr::rename_all(~ c(cNames)) %>%
     dplyr::mutate(parameter = vNames) %>%
     dplyr::select(parameter, dplyr::everything()) %>%

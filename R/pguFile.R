@@ -193,3 +193,13 @@ pgu.file$set("public", "bluntFileName", function(value = "character"){
           self$timeString) %>%
     return()
 })
+
+pgu.file$set("public", "exportFileName", function(){
+  sprintf("%s/%s_%s_%s.%s",
+          self$folderName,
+          self$baseName,
+          self$exportType,
+          self$timeString,
+          self$suffix) %>%
+    return()
+})

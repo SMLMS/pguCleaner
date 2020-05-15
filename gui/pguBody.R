@@ -1,5 +1,6 @@
 library(shiny)
 library(shinydashboard)
+library(shinyjs)
 
 menueColumnWidth <- 3
 dataColumnWidth <- 12 - menueColumnWidth
@@ -84,12 +85,12 @@ body <- shinydashboard::dashboardBody(shinydashboard::tabItems(
           DT::dataTableOutput("tbl.filter", width = "100%"),
           shiny::fluidRow(
             shiny::column(
-              width = 8,
+              width = 6,
               shiny::h3("Statistics"),
               DT::dataTableOutput("tbl.filterStatistics", width = "100%")
             ),
             shiny::column(
-              width = 4,
+              width = 6,
               shiny::h3("Missings"),
               DT::dataTableOutput("tbl.filterMissings", width = "100%")
             )
@@ -166,7 +167,7 @@ body <- shinydashboard::dashboardBody(shinydashboard::tabItems(
             width = '100%',
             label = h5("NA Handling"),
             choices = list(),
-            selected = 1,
+            selected = 1
           ),
           shiny::selectInput(
             "si.loqDetectFeature",
@@ -238,14 +239,14 @@ body <- shinydashboard::dashboardBody(shinydashboard::tabItems(
             width = '100%',
             label = h5("LLOQ Substitute"),
             choices = list(),
-            selected = 1,
+            selected = 1
           ),
           shiny::selectInput(
             "si.uloqSubstitute",
             width = '100%',
             label = h5("ULOQ Substitute"),
             choices = list(),
-            selected = 1,
+            selected = 1
           ),
           shiny::selectInput(
             "si.loqMutateFeature",
@@ -437,471 +438,453 @@ body <- shinydashboard::dashboardBody(shinydashboard::tabItems(
           shiny::fluidRow(
             shiny::column(
               width = 6,
-              shiny::h5("Model Parameter"),
+              shiny::h3("Model Parameter"),
               DT::dataTableOutput("tbl.trafoMutateFeatureParameter")
               ),
             shiny::column(
               width = 6,
-              shiny::h5("Model Quality"),
+              shiny::h3("Model Quality"),
               DT::dataTableOutput("tbl.trafoMutateFeatureQuality")
               )
           ),
           shiny::br(),
           shiny::br(),
           shiny::h3("Global Transformation"),
-          shiny::h5("Transformation Parameter"),
+          shiny::h3("Transformation Parameter"),
           DT::dataTableOutput("tbl.trafoMutateGlobalParameter"),
           shiny::br(),
           shiny::br(),
-          shiny::h5("Model Parameter"),
+          shiny::h3("Model Parameter"),
           DT::dataTableOutput("tbl.trafoMutateGlobalModel"),
           shiny::br(),
           shiny::br(),
-          shiny::h5("Model Quality"),
+          shiny::h3("Model Quality"),
           DT::dataTableOutput("tbl.trafoMutateGlobalQuality"),
           shiny::br(),
           shiny::br(),
-          shiny::h5("Test Results"),
-          DT::dataTableOutput("tbl.trafoMutateGlobalTests")
+          shiny::h3("Test Results"),
+          DT::dataTableOutput("tbl.trafoMutateGlobalTests"),
+          shiny::br(),
+          shiny::br(),
+          shiny::h3("Transformed Data"),
+          DT::dataTableOutput("tbl.trafoMutateGlobalData")
+        )
+      )
+    )
+  ),
+  shinydashboard::tabItem(
+    tabName = "tab_detect_impute",
+    shiny::fluidPage(
+      width = 12,
+      title = "Detect Imputation Sites",
+      shiny::fluidRow(
+        shiny::column(
+          width = menueColumnWidth,
+          shiny::h1("Detect Imputation Sites"),
+          shiny::br(),
+          shiny::hr(),
+          shiny::actionButton(
+            inputId = "ab.imputeDetect",
+            label = "detect imputation sites",
+            width = "100%"
+          )
+        ),
+        shiny::column(
+          width = dataColumnWidth,
+          shiny::h3("Imputation Site Heatmap"),
+          shiny::plotOutput("plt.imputeDetectSummary"),
+          shiny::br(),
+          shiny::br(),
+          shiny::h3("Imputation Site Statistics"),
+          DT::dataTableOutput("tbl.imputeDetectStatistics"),
+          shiny::br(),
+          shiny::br(),
+          shiny::h3("Imputation Site Details"),
+          DT::dataTableOutput("tbl.imputeDetectDetail"),
+          shiny::br(),
+          shiny::br(),
+          shiny::h3("Imputation Site Data"),
+          DT::dataTableOutput("tbl.imputeDetectData")
+        )
+      )
+    )
+  ),
+  shinydashboard::tabItem(
+    tabName = "tab_mutate_impute",
+    shiny::fluidPage(
+      width = 12,
+      title = "Mutate Imputation Sites",
+      shiny::fluidRow(
+        shiny::column(
+          width = menueColumnWidth,
+          shiny::h1("Mutate Imputation Sites"),
+          shiny::br(),
+          shiny::br(),
+          shiny::selectInput(
+            "si.imputeMutateMethod",
+            label = h5("Mutation Method"),
+            width = "100%",
+            choices = list(),
+            selected = 1
+          ),
+          shiny::numericInput(
+            "ni.imputeMutateSeed",
+            label = h5("Seed"),
+            width = "100%",
+            min = 1,
+            max = 1000,
+            step = 1,
+            value = 42
+          ),
+          shiny::numericInput(
+            "ni.imputeMutateIterations",
+            label = h5("Iterations"),
+            width = "100%",
+            min = 1,
+            max = 10,
+            step = 1,
+            value = 4
+          ),
+          shiny::selectInput(
+            "si.imputeMutateFeature",
+            label = h5("Feature"),
+            width = "100%",
+            choices = list(),
+            selected = 1
+          ),
+          shiny::actionButton(
+            inputId = "ab.imputeMutate",
+            label = "mutate imputation sites",
+            width = "100%"
+          ),
+          shiny::actionButton(
+            inputId = "ab.imputeMutateReset",
+            label = "reset imputation settings",
+            width = "100%"
+          )
+        ),
+        shiny::column(
+          width = dataColumnWidth,
+          shiny::fluidRow(
+            shiny::column(
+              width = 6,
+              shiny::h3("Feature Plot"),
+              shiny::plotOutput("plt.imputeMutateFeatureDetail")
+            ),
+            shiny::column(
+              width = 6,
+              shiny::h3("Feature Data"),
+              DT::dataTableOutput("tbl.imputeMutateFeatureDetail")
+            )
+          ),
+          shiny::br(),
+          shiny::br(),
+          shiny::h3("Imputation Site Detail"),
+          DT::dataTableOutput("tbl.imputeMutateDetail"),
+          shiny::br(),
+          shiny::br(),
+          shiny::h3("Imputation Site Data"),
+          DT::dataTableOutput("tbl.imputeMutateData")
+        )
+      )
+    )
+  ),
+  shinydashboard::tabItem(
+    tabName = "tab_detect_outliers",
+    shiny::fluidPage(
+      width = 12,
+      title = "Outliers",
+      shiny::fluidRow(
+        shiny::column(
+          width = menueColumnWidth,
+          shiny::h1("Detect Outliers"),
+          shiny::br(),
+          shiny::hr(),
+          shiny::actionButton(
+            inputId = "ab.outliersDetect",
+            label = "detect outlier",
+            width = "100%"
+          )
+        ),
+        shiny::column(
+          width = dataColumnWidth,
+          shiny::h3("Outlier Distribution"),
+          shiny::plotOutput("plt.outliersDetectSummary"),
+          shiny::hr(),
+          shiny::h3("Outlier Statistics"),
+          DT::dataTableOutput("tbl.outliersDetectStatistics"),
+          shiny::hr(),
+          shiny::h3("Outlier Details"),
+          DT::dataTableOutput("tbl.outliersDetectDetail"),
+          shiny::hr(),
+          shiny::h3("Outlier Data"),
+          DT::dataTableOutput("tbl.outliersDetectData")
+        )
+      )
+    )
+  ),
+  shinydashboard::tabItem(
+    tabName = "tab_mutate_outliers",
+    shiny::fluidPage(
+      width = 12,
+      title = "Outliers",
+      shiny::fluidRow(
+        shiny::column(
+          width = menueColumnWidth,
+          shiny::h1("Mutate Outliers"),
+          shiny::selectInput(
+            "si.outliersMutateMethod",
+            label = h5("Mutation Method"),
+            width = "100%",
+            choices = list(),
+            selected = 1
+          ),
+          shiny::numericInput(
+            "ni.outliersMutateSeed",
+            label = h5("Seed"),
+            width = "100%",
+            min = 1,
+            max = 1000,
+            step = 1,
+            value = 42
+          ),
+          shiny::numericInput(
+            "ni.outliersMutateIterations",
+            label = h5("Iterations"),
+            width = "100%",
+            min = 1,
+            max = 10,
+            step = 1,
+            value = 4
+          ),
+          shiny::selectInput(
+            "si.outliersMutateFeature",
+            label = h5("Feature"),
+            width = "100%",
+            choices = list(),
+            selected = 1
+          ),
+          shiny::actionButton(
+            inputId = "ab.outliersMutate",
+            label = "mutate imputation sites",
+            width = "100%"
+          ),
+          shiny::actionButton(
+            inputId = "ab.outliersMutateReset",
+            label = "reset imputation settings",
+            width = "100%"
+          )
+        ),
+        shiny::column(
+          width = dataColumnWidth,
+          shiny::fluidRow(
+            shiny::column(
+              width = 6,
+              shiny::h3("Feature Plot"),
+              shiny::plotOutput("plt.outliersMutateFeatureDetail")
+            ),
+            shiny::column(
+              width = 6,
+              shiny::h3("Feature Data"),
+              DT::dataTableOutput("tbl.outliersMutateFeatureDetail")
+            )
+          ),
+          shiny::br(),
+          shiny::br(),
+          shiny::h3("Outlier Mutated Details"),
+          DT::dataTableOutput("tbl.outliersMutateDetail"),
+          shiny::br(),
+          shiny::br(),
+          shiny::h3("Outlier Mutated Data"),
+          DT::dataTableOutput("tbl.outliersMutateData")
+        )
+      )
+    )
+  ),
+  shinydashboard::tabItem(
+    tabName = "tab_analysis_correlation",
+    shiny::fluidPage(
+      width = 12,
+      title = "Correlation",
+      shiny::fluidRow(
+        shiny::column(
+          width = menueColumnWidth,
+          shiny::h1("Correlation"),
+          shiny::br(),
+          shiny::br(),
+          shiny::actionButton(
+            inputId = "ab.correlation",
+            label = h5("calculate"),
+            width = "100%"
+          )
+        ),
+        shiny::column(
+          width = dataColumnWidth,
+          shiny::h3("Pearson"),
+          shiny::fluidRow(
+            shiny::column(
+              width = 6,
+              shiny::h3("R"),
+              DT::dataTableOutput("tbl.correlationMatrixR")
+            ),
+            shiny::column(
+              width = 6,
+              shiny::h3("p value"),
+              DT::dataTableOutput("tbl.correlationMatrixPPearson")
+            )
+          ),
+          shiny::hr(),
+          shiny::br(),
+          shiny::h3("Kendall"),
+          shiny::fluidRow(
+            shiny::column(
+              width = 6,
+              shiny::h3("Tau"),
+              DT::dataTableOutput("tbl.correlationMatrixTau")
+            ),
+            shiny::column(
+              width = 6,
+              shiny::h3("p value"),
+              DT::dataTableOutput("tbl.correlationMatrixPKendall")
+            )
+          ),
+          shiny::hr(),
+          shiny::br(),
+          shiny::h3("Spearman"),
+          shiny::fluidRow(
+            shiny::column(
+              width = 6,
+              shiny::h3("Rho"),
+              DT::dataTableOutput("tbl.correlationMatrixRho")
+            ),
+            shiny::column(
+              width = 6,
+              shiny::h3("p value"),
+              DT::dataTableOutput("tbl.correlationMatrixPSpearman")
+            )
+          )
+        )
+      )
+    )
+  ),
+  shinydashboard::tabItem(
+    tabName = "tab_analysis_regression",
+    shiny::fluidPage(
+      width = 12,
+      title = "Regression",
+      shiny::fluidRow(
+        shiny::column(
+          width = menueColumnWidth,
+          shiny::h1("Linear Regression"),
+          shiny::br(),
+          shiny::hr(),
+          shiny::br(),
+          shiny::selectInput(
+            "si.regressionAbs",
+            label = h5("Abscissa"),
+            width = "100%",
+            choices = list(),
+            selected = 1
+          ),
+          shiny::selectInput(
+            "si.regressionOrd",
+            label = h5("Ordinate"),
+            width = "100%",
+            choices = list(),
+            selected = 1
+          ),
+          shiny::br(),
+          shiny::hr(),
+          shiny::br(),
+          shiny::actionButton(
+            inputId = "ab.regression",
+            label = h5("calculate"),
+            width = "100%"
+          )
+        ),
+        shiny::column(
+          width = dataColumnWidth,
+          shiny::h3("Model"),
+          shiny::fluidRow(
+            shiny::column(
+              width = 6,
+              shiny::h3("Analysis"),
+              shiny::plotOutput("plt.regressionFeature")
+            ),
+            shiny::column(
+              width = 6,
+              shiny::h3("Parameter"),
+              DT::dataTableOutput("tbl.regressionFeature")
+            )
+          ),
+          shiny::br(),
+          shiny::br(),
+          shiny::h3("Intercept"),
+          shiny::fluidRow(
+            shiny::column(
+              width = 6,
+              shiny::h3("value"),
+              DT::dataTableOutput("tbl.regressionIntercept")
+            ),
+            shiny::column(
+              width = 6,
+              shiny::h3("p value"),
+              DT::dataTableOutput("tbl.regressionPIntercept")
+            )
+          ),
+          shiny::hr(),
+          shiny::br(),
+          shiny::h3("Slope"),
+          shiny::fluidRow(
+            shiny::column(
+              width = 6,
+              shiny::h3("value"),
+              DT::dataTableOutput("tbl.regressionSlope")
+            ),
+            shiny::column(
+              width = 6,
+              shiny::h3("p value"),
+              DT::dataTableOutput("tbl.regressionPSlope")
+            )
+          )
         )
       )
     )
   )
-        
-
-  
-  
-  # 
   # shinydashboard::tabItem(
-  #   tabName = "tab_trafo",
-  #   fluidPage(
+  #   tabName = "tab_export",
+  #   shiny::fluidPage(
   #     width = 12,
-  #     height = "575px",
-  #     title = "Transformation",
+  #     title = "Export",
   #     shiny::fluidRow(
   #       shiny::column(
-  #         width = 3,
-  #         shinydashboard::box(
-  #           width = 12,
-  #           height = "575px",
-  #           title = "Menue",
-  #           status = "primary",
-  #           solidHeader = TRUE,
-  #           selectInput(
-  #             "si.transformationFeature",
-  #             label = h5("Feature"),
-  #             choices = list(),
-  #             selected = 1,
-  #             width = "100%"
-  #           ),
-  #           selectInput(
-  #             "si.transformationType",
-  #             label = h5("Transformation Type"),
-  #             choices = list(),
-  #             selected = 1,
-  #             width = "100%"
-  #           ),
-  #           shiny::checkboxInput(
-  #             "cb.mirrorLogic",
-  #             label = h5("Mirror Data"),
-  #             value = FALSE
-  #           ),
-  #           shiny::hr(),
-  #           shiny::actionButton(
-  #             inputId = "ab.trafoSet",
-  #             label = "set",
-  #             width = "100%"
-  #           ),
-  #           shiny::actionButton(
-  #             inputId = "ab.trafoSetGlobal",
-  #             label = "set globally",
-  #             width = "100%"
-  #           ),
-  #           shiny::hr(),
-  #           shiny::actionButton(
-  #             inputId = "ab.trafoReset",
-  #             label = "reset",
-  #             width = "100%"
-  #           )
-  #         )
-  #       ),
+  #         width = menueColumnWidth,
+  #         shiny::h1("Linear Regression"),
+  #         shiny::br(),
+  #         shiny::hr(),
+  #         shiny::br(),
+  #         shiny::checkboxInput(
+  #           "cb.Export",
+  #           width = "100%",
+  #           label = h5("Export model parameter"),
+  #           value = TRUE
+  #         ), #end checkboxInput
+  #         shiny::br(),
+  #         shiny::hr(),
+  #         shiny::br(),
+  #         shinyjs::useShinyjs(),
+  #         shiny::downloadButton(
+  #           'db.export',
+  #           width = "100%",
+  #           labe = h5('Download')
+  #         )#end downloadButton
+  #       ), #end column
   #       shiny::column(
-  #         width = 9,
-  #         shinydashboard::box(
-  #           width = 12,
-  #           height = "100%",
-  #           title = "Model Results",
-  #           status = "primary",
-  #           solidHeader = TRUE,
-  #           tabBox(
-  #             width = 12,
-  #             # The id lets us use input$tabset1 on the server to find the current tab
-  #             id = "tabsetTransformation",
-  #             height = "250px",
-  #             tabPanel(
-  #               "Feature",
-  #               shiny::fluidPage(shiny::plotOutput("plt.featureTransformFit")),
-  #               hr(),
-  #               fluidPage(fluidRow(
-  #                 column(6,
-  #                        DT::dataTableOutput("tbl.featureModelParameter")),
-  #                 column(6,
-  #                        DT::dataTableOutput("tbl.featureModelQuality"))
-  #               ))
-  #             ),
-  #             tabPanel(
-  #               "Transformation Parameter",
-  #               DT::dataTableOutput("tbl.transformationParameter")
-  #             ),
-  #             tabPanel("Model Parameter",
-  #                      DT::dataTableOutput("tbl.modelParameter")),
-  #             tabPanel("Model Quality",
-  #                      DT::dataTableOutput("tbl.modelQuality")),
-  #             tabPanel("Test Results",
-  #                      DT::dataTableOutput("tbl.testResults"))
-  #           )
-  #       
-  # ))))),
-  # shinydashboard::tabItem(tabName = "tab_tidy",
-  #                         fluidPage(
-  #                           width = 12,
-  #                           height = "575px",
-  #                           shiny::fluidRow(
-  #                             shiny::column(
-  #                               width = 3,
-  #                               shinydashboard::box(
-  #                                 width = 12,
-  #                                 height = "575px",
-  #                                 title = "Menue",
-  #                                 status = "primary",
-  #                                 solidHeader = TRUE,
-  #                                 shiny::selectInput(
-  #                                   "si.nanHandleMethod",
-  #                                   label = h5("Mutation Method"),
-  #                                   choices = list(),
-  #                                   selected = 1
-  #                                 ),
-  #                                 shiny::numericInput("ni.nanSeed", label = h5("Seed"),
-  #                                                     value = 42),
-  #                                 shiny::hr(),
-  #                                 shiny::selectInput(
-  #                                   "si.nanHandleFeature",
-  #                                   label = h5("Feature"),
-  #                                   choices = list(),
-  #                                   selected = 1
-  #                                 ),
-  #                                 selectInput(
-  #                                   "si.nanSummary",
-  #                                   label = h5("Information Detail"),
-  #                                   choices = list("Statistics", "Missings", "Data"),
-  #                                   selected = 1
-  #                                 ),
-  #                                 shiny::hr(),
-  #                                 shiny::actionButton(
-  #                                   inputId = "ab.analyzeMissings",
-  #                                   label = "analyze NA",
-  #                                   width = "100%"
-  #                                 ),
-  #                                 shiny::actionButton(
-  #                                   inputId = "ab.mutateMissings",
-  #                                   label = "mutate NA",
-  #                                   width = "100%"
-  #                                 ),
-  #                                 shiny::actionButton(
-  #                                   inputId = "ab.resetMissings",
-  #                                   label = "reset",
-  #                                   width = "100%"
-  #                                 )
-  #                                 )),
-  #                             shiny::column(
-  #                               width = 9,
-  #                               shinydashboard::box(
-  #                                 width = 12,
-  #                                 height = "1050px",
-  #                                 title = "Handle NANs",
-  #                                 status = "primary",
-  #                                 solidHeader = TRUE,
-  #                           shinydashboard::tabBox(
-  #                             width = 12,
-  #                             # The id lets us use input$tabset1 on the server to find the current tab
-  #                             id = "tabsetTidy",
-  #                             height = "1000px",
-  #                             shiny::tabPanel(
-  #                               "NAN Summary",
-  #                               shiny::fluidPage(
-  #                                 shiny::plotOutput("plt.nanSummary"),
-  #                                 shiny::hr(),
-  #                                 DT::dataTableOutput("tbl.nanSummary")
-  #                             )
-  #                             ),
-  #                             shiny::tabPanel(
-  #                               "Results",
-  #                               shiny::fluidPage(
-  #                                 plotOutput("plt.nanCleaningSummary"),
-  #                                 shiny::hr(),
-  #                                 DT::dataTableOutput("tbl.nanCleaningSummary")
-  #                               )
-  #                             )
-  #                           )))
-  #                         ))),
-  # 
-  # shinydashboard::tabItem(tabName = "tab_revise",
-  #                         fluidPage(
-  #                           width = 12,
-  #                           height = "575px",
-  #                           shiny::fluidRow(
-  #                             shiny::column(
-  #                               width = 3,
-  #                               shinydashboard::box(
-  #                                 width = 12,
-  #                                 height = "575px",
-  #                                 title = "Menue",
-  #                                 status = "primary",
-  #                                 solidHeader = TRUE,
-  #                                 shiny::selectInput(
-  #                                   "si.outHandleMethod",
-  #                                   label = h5("Mutation Method"),
-  #                                   choices = list(),
-  #                                   selected = 1
-  #                                 ),
-  #                                 shiny::numericInput("ni.outSeed", label = h5("Seed"),
-  #                                                     value = 42),
-  #                                 shiny::hr(),
-  #                                 shiny::selectInput(
-  #                                   "si.outHandleFeature",
-  #                                   label = h5("Feature"),
-  #                                   choices = list(),
-  #                                   selected = 1
-  #                                 ),
-  #                                 selectInput(
-  #                                   "si.outSummary",
-  #                                   label = h5("Information Detail"),
-  #                                   choices = list("Statistics", "Outliers", "Data"),
-  #                                   selected = 1
-  #                                 ),
-  #                                 shiny::hr(),
-  #                                 shiny::actionButton(
-  #                                   inputId = "ab.detectOutliers",
-  #                                   label = "analyze outliers",
-  #                                   width = "100%"
-  #                                 ),
-  #                                 shiny::actionButton(
-  #                                   inputId = "ab.reviseOutliers",
-  #                                   label = "mutate outliers",
-  #                                   width = "100%"
-  #                                 ),
-  #                                 shiny::actionButton(
-  #                                   inputId = "ab.outliersReset",
-  #                                   label = "reset",
-  #                                   width = "100%"
-  #                                 )
-  #                               )),
-  #                             shiny::column(
-  #                               width = 9,
-  #                               shinydashboard::box(
-  #                                 width = 12,
-  #                                 height = "1050px",
-  #                                 title = "Revise Outliers",
-  #                                 status = "primary",
-  #                                 solidHeader = TRUE,
-  #                                 shinydashboard::tabBox(
-  #                                   width = 12,
-  #                                   # The id lets us use input$tabset1 on the server to find the current tab
-  #                                   id = "tabsetTidy",
-  #                                   height = "1000px",
-  #                                   shiny::tabPanel(
-  #                                     "Outlier Summary",
-  #                                     shiny::fluidPage(
-  #                                       shiny::plotOutput("plt.outSummary"),
-  #                                       shiny::hr(),
-  #                                       DT::dataTableOutput("tbl.outSummary")
-  #                                     )
-  #                                   ),
-  #                                   shiny::tabPanel(
-  #                                     "Results",
-  #                                     shiny::fluidPage(
-  #                                       plotOutput("plt.outCleaningSummary"),
-  #                                       shiny::hr(),
-  #                                       DT::dataTableOutput("tbl.outCleaningSummary")
-  #                                     )
-  #                                   )
-  #                                 )))
-  #                           ))),
-  # shinydashboard::tabItem(tabName = "tab_correlation",
-  #                         shiny::fluidPage(width = 12,
-  #                                          id = "tabsetCorrelation",
-  #                                          shiny::fluidRow(
-  #                                            shiny::column(
-  #                                              width = 3,
-  #                                              height = "800px",
-  #                                              shinydashboard::box(
-  #                                                width = 12,
-  #                                                height = "800px",
-  #                                                title = "Menue",
-  #                                                status = "primary",
-  #                                                solidHeader = TRUE,
-  #                                                shiny::fluidPage(width = 12,
-  #                                                                 height = "400px",
-  #                                                                 shiny::selectInput(
-  #                                                                   inputId = "si.correlationMatrix",
-  #                                                                   width = "100%",
-  #                                                                   label = h5("Statistics"),
-  #                                                                   choices = list("r", "p.Pearson",
-  #                                                                                  "tau", "p.Kendall",
-  #                                                                                  "rho", "p.Spearman"),
-  #                                                                   selected = 1
-  #                                                                 )
-  #                                                ),
-  #                                                shiny::hr(),
-  #                                                shiny::fluidPage(width = 12,
-  #                                                                 height = "400px",
-  #                                                                 shiny::actionButton(
-  #                                                                   inputId = "ab.correlation",
-  #                                                                   label = "calculate",
-  #                                                                   width = "100%")
-  #                                                                 )
-  #                                              )
-  #                                            ),
-  #                                            shiny::column(
-  #                                              width = 9,
-  #                                              height = "800px",
-  #                                              shinydashboard::box(
-  #                                                width = 12,
-  #                                                height = "800px",
-  #                                                title = "Correlation",
-  #                                                status = "primary",
-  #                                                solidHeader = TRUE,
-  #                                                shiny::fluidPage(
-  #                                                  width = 12,
-  #                                                  height = "800px",
-  #                                                  DT::dataTableOutput("tbl.correlationMatrix")
-  #                                                )
-  #                                              )
-  #                                            )
-  #                                          )
-  #                                          )
-  #                         ),
-  # shinydashboard::tabItem(tabName = "tab_regression",
-  #                         shiny::fluidPage(
-  #                           width = 12,
-  #                           title = "Regression",
-  #                           id = "tabsetRegression",
-  #                           shiny::fluidRow(
-  #                             shiny::column(
-  #                               width = 3,
-  #                               shinydashboard::box(
-  #                                 width = 12,
-  #                                 height = "800px",
-  #                                 title = "Menue",
-  #                                 status = "primary",
-  #                                 solidHeader = TRUE,
-  #                                 shiny::fluidPage(
-  #                                   width = 12,
-  #                                   height = "400px",
-  #                                   shiny::selectInput(
-  #                                     "si.regressionAbs",
-  #                                     width = "100%",
-  #                                     label = h5("Abscissae"),
-  #                                     choices = list(),
-  #                                     selected = 1
-  #                                   ),
-  #                                   shiny::selectInput(
-  #                                     "si.regressionOrd",
-  #                                     width = "100%",
-  #                                     label = h5("Ordinate"),
-  #                                     choices = list(),
-  #                                     selected = 1
-  #                                   ),
-  #                                   shiny::selectInput(
-  #                                     "si.regressionMatrix",
-  #                                     width = "100%",
-  #                                     label = h5("Statistics"),
-  #                                     choices = list("Intercept", "p.Intercept",
-  #                                                    "Slope", "p.Slope"),
-  #                                     selected = 1
-  #                                   )
-  #                                 ),
-  #                                 shiny::hr(),
-  #                                 shiny::fluidPage(
-  #                                   width = 12,
-  #                                   height = "400px",
-  #                                   shiny::actionButton(
-  #                                     inputId = "ab.regression",
-  #                                     label = "calculate",
-  #                                     width = "100%"
-  #                                   )
-  #                                 )
-  #                               )
-  #                             ),
-  #                             shiny::column(
-  #                               width = 9,
-  #                               shinydashboard::box(
-  #                                 width = 12,
-  #                                 height = "800px",
-  #                                 title = "Regression",
-  #                                 status = "primary",
-  #                                 solidHeader = TRUE,
-  #                                 shinydashboard::tabBox(
-  #                                   width = 12,
-  #                                   id = "tabsetRegression",
-  #                                   height = "700px",
-  #                                   shiny::tabPanel(
-  #                                     width = 12,
-  #                                     height = "700px",
-  #                                     title = "Feature",
-  #                                     shiny::fluidRow(
-  #                                       shiny::column(
-  #                                         width = 8,
-  #                                         shiny::fluidPage(
-  #                                           width = 12,
-  #                                           height = "700px",
-  #                                           plotOutput("plt.regressionFeature")
-  #                                         )
-  #                                       ),
-  #                                       shiny::column(
-  #                                         width  = 4,
-  #                                         shiny::fluidPage(
-  #                                           width = 12,
-  #                                           height = "700px",
-  #                                           DT::dataTableOutput("tbl.regressionFeature")
-  #                                         )
-  #                                       )
-  #                                   )
-  #                                   ),
-  #                                   shiny::tabPanel(
-  #                                     width = 12,
-  #                                     height = "700px",
-  #                                     title = "Statistics",
-  #                                     shiny::fluidPage(
-  #                                       width = 12,
-  #                                       height = "700px",
-  #                                       DT::dataTableOutput("tbl.regressionMatrix")
-  #                                     )
-  #                                   )
-  #                                   )
-  #                                 )
-  #                               )
-  #                             )
-  #                           )
-  #                         ),
-  # shinydashboard::tabItem(tabName = "tab_export",
-  #                         fluidPage(
-  #                           width = 12,
-  #                           shinydashboard::box(
-  #                             width = 12,
-  #                             title = "Download Results",
-  #                             status = "primary",
-  #                             solidHeader = TRUE,
-  #                             collapsible = TRUE,
-  #                             shiny::selectInput("si.exportType", label = h5("Data Set"),
-  #                                                choices = list(),
-  #                                                selected = 1),
-  #                             shiny::selectInput("si.suffix", label = h5("Format"),
-  #                                                choices = list(),
-  #                                                selected = 1),
-  #                             
-  #                             shiny::downloadButton('db.export', 'Download'),
-  #                             shiny::actionButton("ab.export", "action"))))
+  #         width = dataColumnWidth
+  #       )#end column
+  #     )#end fluidRow
+  #   )#end fluidPage
+  # )#end tabItem
 ))
     
 

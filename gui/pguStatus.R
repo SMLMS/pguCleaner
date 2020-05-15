@@ -50,7 +50,7 @@ pgu.status <- R6::R6Class("pgu.status",
 pgu.status$set("public", "reset", function(){
   private$.processAlphabet <- c("dataUploaded", "dataImported", "loqImported", "metadataImported", "dataFiltered",
                                 "loqDetected", "loqMutated", "modelOptimized", "modelDefined", "naDetected",
-                                "naMutated", "outlierDetected", "outlierMutated", "correlated", "regression")
+                                "naMutated", "outliersDetected", "outliersMutated", "correlated", "regression")
   private$.processStatus <- c(rep(FALSE, length(self$processAlphabet)))
 })
 
@@ -58,7 +58,9 @@ pgu.status$set("public", "reset", function(){
 pgu.status$set("public", "update", function(processName = "character", value = "logical"){
   processFactor <- factor(processName, levels = self$processAlphabet)
   idx <- as.integer(processFactor)
-  private$.processStatus[1:idx] <- TRUE
+  if(value){
+    private$.processStatus[1:idx] <- TRUE
+  }
   private$.processStatus[idx:length(self$processAlphabet)] <- FALSE
   private$.processStatus[idx] <- value
   

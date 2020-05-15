@@ -1,0 +1,13 @@
+Package: pguCleaner
+Type: Package
+Title: Graphical imputation tool
+Version: 20.04
+Author: Sebastian Malkusch
+Maintainer: Sebastian Malkusch <malkusch@med.uni-frankfurt.de>
+Description: Reproducible cleaning of biomedical laboratory data using methods of visualization,
+error correction and transformation implemented as interactive R-notebooks.
+License: GPL3
+Encoding: UTF-8
+LazyData: true
+RoxygenNote: 7.1.0
+Collate: 

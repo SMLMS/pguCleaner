@@ -487,17 +487,18 @@ pgu.limitsOfQuantification$set("public", "featurePlot", function(obj = "tbl_df",
     ggplot2::theme(legend.position = c(0.9, 0.9),
                    legend.key = ggplot2::element_blank(),
                    legend.background = ggplot2::element_blank())
-  limits1 <- layer_scales(p1)$y$range$range
+  
+  limits1 <- ggplot2::layer_scales(p1)$y$range$range
   
   p2 <- self$featureBarPlot(obj, feature)
-  limits2 <- layer_scales(p2)$x$range$range
+  limits2 <- ggplot2::layer_scales(p2)$x$range$range
   
   limits <- c(min(c(limits1[1], limits2[1])),
               max(c(limits1[2], limits2[2]))
   )
   
   p1 <- p1 +
-    ggplot2::scale_y_continuous(position = "top", limits=limits)
+    ggplot2::scale_y_continuous(limits=limits)
   
   p2 <- p2 +
     ggplot2::scale_x_continuous(position = "top", limits=limits) +

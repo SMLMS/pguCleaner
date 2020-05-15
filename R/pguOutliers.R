@@ -15,6 +15,7 @@ pgu.outliers <- R6::R6Class("pgu.outliers",
                                  .cleaningAgentAlphabet = "character",
                                  .cleaningAgent = "factor",
                                  .seed = "numeric",
+                                 .iterations = "numeric",
                                  .featureData = "numeric",
                                  .alpha = "numeric",
                                  .minSamples = "numeric",
@@ -45,6 +46,12 @@ pgu.outliers <- R6::R6Class("pgu.outliers",
                                  setSeed = function(value = "numeric"){
                                    private$.seed <- value
                                  },
+                                 iterations = function(){
+                                   return(private$.iterations)
+                                 },
+                                 setIterations = function(value = "numeric"){
+                                   private$.iterations <- value
+                                 },
                                  featureData = function(){
                                    return(private$.featureData)
                                  },
@@ -68,8 +75,9 @@ pgu.outliers <- R6::R6Class("pgu.outliers",
                                  initialize = function(data = "tbl_df"){
                                    self$setAlpha <- 0.05
                                    private$.minSamples <- 6
-                                   private$.cleaningAgentAlphabet <- c("none", "median", "mean", "mu", "mc", "knn", "pmm", "cart", "rf", "amelia")
+                                   private$.cleaningAgentAlphabet <- c("none", "median", "mean", "mu", "mc", "knn", "pmm", "cart", "rf", "M5P", "amelia", "amelia_bound")
                                    self$setSeed <- 42.0
+                                   self$setIterations <- 4
                                    self$setCleaningAgent <- self$cleaningAgentAlphabet[1]
                                    if(class(data)[1] != "tbl_df"){
                                      data <- tibble::tibble(names <- "none",
@@ -86,7 +94,7 @@ pgu.outliers <- R6::R6Class("pgu.outliers",
                                  print = function(){
                                    rString <- sprintf("\npgu.outliers\n")
                                    cat(rString)
-                                   uString <- sprintf("\nseed: %.3e\ncleaningAgent: %s\noutliers:\n", self$seed, self$cleaningAgent)
+                                   uString <- sprintf("\nseed: %.3e\niterations: $i\ncleaningAgent: %s\noutliers:\n", self$seed, self$iterations, self$cleaningAgent)
                                    cat(uString)
                                    print(self$outliers)
                                    print(self$outliersParameter)
@@ -266,41 +274,49 @@ pgu.outliers$set("public", "handleOutliers", function(data = "tbl_df", progress 
   cleanedData <- switch(self$cleaningAgent,
                        "none" = {data},
                        "median" = {data %>%
-                         self$filterFeatures() %>%
-                         self$insertImputationSites() %>%
-                         self$cleanByMedian(progress = progress)},
+                           self$filterFeatures() %>%
+                           self$insertImputationSites() %>%
+                           self$cleanByMedian(progress = progress)},
                        "mean" = {data %>%
-                         self$filterFeatures() %>%
-                         self$insertImputationSites() %>%
-                         self$cleanByMean(progress = progress)},
+                           self$filterFeatures() %>%
+                           self$insertImputationSites() %>%
+                           self$cleanByMean(progress = progress)},
                        "mu" = {data %>%
-                         self$filterFeatures() %>%
-                         self$insertImputationSites() %>%
-                         self$cleanByExpectationValue(progress = progress)},
+                           self$filterFeatures() %>%
+                           self$insertImputationSites() %>%
+                           self$cleanByExpectationValue(progress = progress)},
                        "mc" = {data %>%
-                         self$filterFeatures() %>%
-                         self$insertImputationSites() %>%
-                         self$cleanByMC(progress = progress)},
+                           self$filterFeatures() %>%
+                           self$insertImputationSites() %>%
+                           self$cleanByMC(progress = progress)},
                        "knn" = {data %>%
-                         self$filterFeatures() %>%
-                         self$insertImputationSites() %>%
-                         self$cleanByKnn(progress = progress)},
+                           self$filterFeatures() %>%
+                           self$insertImputationSites() %>%
+                           self$cleanByKnn(progress = progress)},
                        "pmm" = {data %>%
-                         self$filterFeatures() %>%
-                         self$insertImputationSites() %>%
-                         self$cleanByPmm(progress = progress)},
+                           self$filterFeatures() %>%
+                           self$insertImputationSites() %>%
+                           self$cleanByMice("pmm", progress = progress)},
                        "cart" = {data %>%
-                         self$filterFeatures() %>%
-                         self$insertImputationSites() %>%
-                         self$cleanByCart(progress = progress)},
+                           self$filterFeatures() %>%
+                           self$insertImputationSites() %>%
+                           self$cleanByMice("cart", progress = progress)},
                        "rf" = {data %>%
-                         self$filterFeatures() %>%
-                         self$insertImputationSites() %>%
-                         self$cleanByRf(progress = progress)},
+                           self$filterFeatures() %>%
+                           self$insertImputationSites() %>%
+                           self$cleanByMice("rf", progress = progress)},
+                       "M5P" = {data %>%
+                           self$filterFeatures() %>%
+                           self$insertImputationSites() %>%
+                           self$cleanByM5P(progress = progress)},
                        "amelia" = {data %>%
-                         self$filterFeatures() %>%
-                         self$insertImputationSites() %>%
-                         self$cleanByAmelia(progress = progress)}
+                           self$filterFeatures() %>%
+                           self$insertImputationSites() %>%
+                           self$cleanByAmelia(progress = progress)},
+                       "amelia_bound" = {data %>%
+                           self$filterFeatures() %>%
+                           self$insertImputationSites() %>%
+                           self$cleanByAmeliaBound(progress = progress)}
   )
   data %>%
     dplyr::select(-dplyr::one_of(self$outliersParameter[["features"]])) %>%
@@ -352,21 +368,71 @@ pgu.outliers$set("public", "cleanByExpectationValue", function(data = "tbl_df", 
 })
 
 pgu.outliers$set("public", "cleanByMC", function(data = "tbl_df", progress = "Progress"){
+  imputed_df <- data
   for (feature in self$outliersParameter[["features"]]){
     if(("shiny" %in% (.packages())) & (class(progress)[1] == "Progress")){
       progress$inc(1)
     }
+    stats0 <- data %>%
+      dplyr::select(feature) %>%
+      unlist() %>%
+      psych::describe()
+    stats <- matrix(NA, ncol= self$iterations, nrow = 13)
+    for (j in 1:self$iterations) {
+      set.seed(self$seed + j - 1)
+      indices <- self$outliersIdxByFeature(feature)
+      mcVal <- stats::rnorm(n = length(indices),
+                            mean = 0.0,
+                            sd = 1.0)
+      complete_Data <- data %>%
+        dplyr::mutate(!!feature := replace(!!as.name(feature),
+                                           indices,
+                                           mcVal))
+      stats[,j] <-complete_Data %>%
+        dplyr::select(feature) %>%
+        unlist() %>%
+        psych::describe() %>%
+        t()%>%
+        unlist()
+    }
+    diffMat <- stats %>%
+      sweep(MARGIN = 1, STATS = unlist(stats0), FUN = "-") %>%
+      abs()
+    ranks <- apply(X = diffMat, MARGIN = 1, FUN = function(x)rank(x, ties.method = "max"))
+    set.seed(self$seed+which.min(rowSums(ranks[,3:13]))-1)
     indices <- self$outliersIdxByFeature(feature)
     mcVal <- stats::rnorm(n = length(indices),
                           mean = 0.0,
                           sd = 1.0)
-    data <- data %>%
+    complete_Data <- data %>%
       dplyr::mutate(!!feature := replace(!!as.name(feature),
                                          indices,
                                          mcVal))
+    
+    imputed_df <- imputed_df %>%
+      dplyr::mutate(!!feature := complete_Data %>%
+                      dplyr::select(feature) %>%
+                      unlist())
   }
-  return(data)
+  return(imputed_df)
 })
+
+# pgu.outliers$set("public", "cleanByMC", function(data = "tbl_df", progress = "Progress"){
+#   for (feature in self$outliersParameter[["features"]]){
+#     if(("shiny" %in% (.packages())) & (class(progress)[1] == "Progress")){
+#       progress$inc(1)
+#     }
+#     indices <- self$outliersIdxByFeature(feature)
+#     mcVal <- stats::rnorm(n = length(indices),
+#                           mean = 0.0,
+#                           sd = 1.0)
+#     data <- data %>%
+#       dplyr::mutate(!!feature := replace(!!as.name(feature),
+#                                          indices,
+#                                          mcVal))
+#   }
+#   return(data)
+# })
 
 
 pgu.outliers$set("public", "cleanByKnn", function(data = "tbl_df", progress = "Progress"){
@@ -398,90 +464,195 @@ pgu.outliers$set("public", "cleanByKnn", function(data = "tbl_df", progress = "P
     return(data)
 })
 
+# 
+# pgu.outliers$set("public", "cleanByPmm", function(data = "tbl_df", progress = "Progress"){
+#   cleanedData <- data %>%
+#     as.data.frame() %>%
+#     mice::mice(m=5,
+#                maxit = 5,
+#                method = "pmm",
+#                seed = self$seed) %>%
+#     mice::complete(action = 1) %>%
+#     tibble::as_tibble()
+# 
+#   for (feature in self$outliersParameter[["features"]]){
+#     if(("shiny" %in% (.packages())) & (class(progress)[1] == "Progress")){
+#       progress$inc(1)
+#     }
+#     indices <- self$outliersIdxByFeature(feature)
+#     data %>%
+#       dplyr::slice(indices) %>%
+#       dplyr::pull(feature)
+#     
+#     data <- data %>%
+#       dplyr::mutate(!!feature := replace(!!as.name(feature),
+#                                          indices,
+#                                          cleanedData %>%
+#                                            dplyr::slice(indices) %>%
+#                                            dplyr::pull(feature)))
+#   }
+#   return(data)
+# })
+# 
+# pgu.outliers$set("public", "cleanByCart", function(data = "tbl_df", progress = "Progress"){
+#   cleanedData <- data %>%
+#     as.data.frame() %>%
+#     mice::mice(minbucket = 3,
+#                method = "cart",
+#                seed = self$seed) %>%
+#     mice::complete(action = 1) %>%
+#     tibble::as_tibble()
+# 
+#   for (feature in self$outliersParameter[["features"]]){
+#     if(("shiny" %in% (.packages())) & (class(progress)[1] == "Progress")){
+#       progress$inc(1)
+#     }
+#     indices <- self$outliersIdxByFeature(feature)
+#     data %>%
+#       dplyr::slice(indices) %>%
+#       dplyr::pull(feature)
+#     
+#     data <- data %>%
+#       dplyr::mutate(!!feature := replace(!!as.name(feature),
+#                                          indices,
+#                                          cleanedData %>%
+#                                            dplyr::slice(indices) %>%
+#                                            dplyr::pull(feature)))
+#   }
+#   return(data)
+# })
+# 
+# pgu.outliers$set("public", "cleanByRf", function(data = "tbl_df", progress = "Progress"){
+#   cleanedData <- data %>%
+#     as.data.frame() %>%
+#     mice::mice(ntree = 3,
+#                method = "rf",
+#                seed = self$seed) %>%
+#     mice::complete(action = 1) %>%
+#     tibble::as_tibble()
+# 
+#   for (feature in self$outliersParameter[["features"]]){
+#     if(("shiny" %in% (.packages())) & (class(progress)[1] == "Progress")){
+#       progress$inc(1)
+#     }
+#     indices <- self$outliersIdxByFeature(feature)
+#     data %>%
+#       dplyr::slice(indices) %>%
+#       dplyr::pull(feature)
+#     
+#     data <- data %>%
+#       dplyr::mutate(!!feature := replace(!!as.name(feature),
+#                                          indices,
+#                                          cleanedData %>%
+#                                            dplyr::slice(indices) %>%
+#                                            dplyr::pull(feature)))
+#   }
+#   return(data)
+# })
 
-pgu.outliers$set("public", "cleanByPmm", function(data = "tbl_df", progress = "Progress"){
-  cleanedData <- data %>%
-    as.data.frame() %>%
-    mice::mice(m=5,
-               maxit = 5,
-               method = "pmm",
-               seed = self$seed) %>%
-    mice::complete(action = 1) %>%
-    tibble::as_tibble()
-
-  for (feature in self$outliersParameter[["features"]]){
-    if(("shiny" %in% (.packages())) & (class(progress)[1] == "Progress")){
-      progress$inc(1)
-    }
-    indices <- self$outliersIdxByFeature(feature)
-    data %>%
-      dplyr::slice(indices) %>%
-      dplyr::pull(feature)
-    
-    data <- data %>%
-      dplyr::mutate(!!feature := replace(!!as.name(feature),
-                                         indices,
-                                         cleanedData %>%
-                                           dplyr::slice(indices) %>%
-                                           dplyr::pull(feature)))
+pgu.outliers$set("public", "cleanByMice", function(data, method = "character", progress = "Progress") {
+  if(ncol(data) < 2){
+    return(data)
   }
-  return(data)
+  else{
+    cleaned_df <- data
+    data_col_names <- colnames(data)
+    colnames(data) <- paste0("F", seq(1:ncol(data))) %>%
+      as.character()
+    imputed_df <- data
+    for (col_name in colnames(data)) {
+      if(("shiny" %in% (.packages())) & (class(progress)[1] == "Progress")){
+        progress$inc(1)
+      }
+      stats0 <- data %>%
+        dplyr::select(col_name) %>%
+        unlist() %>%
+        psych::describe()
+      stats <- matrix(NA, ncol= self$iterations, nrow = 13)
+      for (j in 1:self$iterations) {
+        imputed_Data <- data %>%
+          mice::mice(method = method, seed = self$seed+j-1, printFlag = FALSE)
+        complete_Data <- mice::complete(imputed_Data,1)
+        stats[,j] <-complete_Data %>%
+          dplyr::select(col_name) %>%
+          unlist() %>%
+          psych::describe() %>%
+          t()%>%
+          unlist()
+      }
+      diffMat <- stats %>%
+        sweep(MARGIN = 1, STATS = unlist(stats0), FUN = "-") %>%
+        abs()
+      ranks <- apply(X = diffMat, MARGIN = 1, FUN = function(x)rank(x, ties.method = "max"))
+      imputed_Data <- data %>%
+        mice::mice(method = method,
+                   seed = self$seed+which.min(rowSums(ranks[,3:13]))-1,
+                   printFlag = FALSE)
+      complete_Data <- mice::complete(imputed_Data,1)
+      
+      imputed_df <- imputed_df %>%
+        dplyr::mutate(!!col_name := complete_Data %>%
+                        dplyr::select(col_name) %>%
+                        unlist())
+    }
+    colnames(imputed_df) <- data_col_names
+    for (col_name in data_col_names) {
+      if(("shiny" %in% (.packages())) & (class(progress)[1] == "Progress")){
+        progress$inc(1)
+      }
+      indices <- self$outliersIdxByFeature(col_name)
+      
+      cleaned_df <- cleaned_df %>%
+        dplyr::mutate(!!col_name := replace(!!as.name(col_name),
+                                            indices,
+                                            imputed_df %>%
+                                              dplyr::slice(indices) %>%
+                                              dplyr::pull(col_name)))
+    }
+    
+    return(cleaned_df)
+  }
 })
 
-pgu.outliers$set("public", "cleanByCart", function(data = "tbl_df", progress = "Progress"){
-  cleanedData <- data %>%
-    as.data.frame() %>%
-    mice::mice(minbucket = 3,
-               method = "cart",
-               seed = self$seed) %>%
-    mice::complete(action = 1) %>%
-    tibble::as_tibble()
-
-  for (feature in self$outliersParameter[["features"]]){
-    if(("shiny" %in% (.packages())) & (class(progress)[1] == "Progress")){
-      progress$inc(1)
-    }
-    indices <- self$outliersIdxByFeature(feature)
-    data %>%
-      dplyr::slice(indices) %>%
-      dplyr::pull(feature)
-    
-    data <- data %>%
-      dplyr::mutate(!!feature := replace(!!as.name(feature),
-                                         indices,
-                                         cleanedData %>%
-                                           dplyr::slice(indices) %>%
-                                           dplyr::pull(feature)))
+pgu.outliers$set("public", "cleanByM5P", function(data = "tl_df", progress = "Progress"){
+  if(ncol(data) < 2){
+    return(data)
   }
-  return(data)
-})
-
-pgu.outliers$set("public", "cleanByRf", function(data = "tbl_df", progress = "Progress"){
-  cleanedData <- data %>%
-    as.data.frame() %>%
-    mice::mice(ntree = 3,
-               method = "rf",
-               seed = self$seed) %>%
-    mice::complete(action = 1) %>%
-    tibble::as_tibble()
-
-  for (feature in self$outliersParameter[["features"]]){
-    if(("shiny" %in% (.packages())) & (class(progress)[1] == "Progress")){
-      progress$inc(1)
+  else{
+    data_col_names <- colnames(data)
+    colnames(data) <- paste0("F", seq(1:ncol(data))) %>%
+      as.character()
+    imputed_df <- data
+    for (i in 1:length(colnames(data))) {
+      if(("shiny" %in% (.packages())) & (class(progress)[1] == "Progress")){
+        progress$inc(1)
+      }
+      
+      na_idx <- self$outliersIdxByFeature(featureName = data_col_names[i])
+      
+      if((length(na_idx)<1) | length(na_idx) == nrow(data)){
+        next
+      }
+      train_df <- data %>%
+        dplyr::slice(-na_idx)
+      
+      na_df <- data %>%
+        dplyr::slice(na_idx)
+      
+      m5 <- colnames(data)[i] %>%
+        paste("~.") %>%
+        as.formula() %>%
+        RWeka::M5P(data = train_df)
+      
+      na_values <- predict(m5, newdata = na_df)
+      
+      for (j in 1:length(na_idx)){
+        imputed_df[[na_idx[j], colnames(data)[i]]] <- na_values[j]
+      }
     }
-    indices <- self$outliersIdxByFeature(feature)
-    data %>%
-      dplyr::slice(indices) %>%
-      dplyr::pull(feature)
-    
-    data <- data %>%
-      dplyr::mutate(!!feature := replace(!!as.name(feature),
-                                         indices,
-                                         cleanedData %>%
-                                           dplyr::slice(indices) %>%
-                                           dplyr::pull(feature)))
+    colnames(imputed_df) <- data_col_names
+    return(imputed_df)
   }
-  return(data)
 })
 
 pgu.outliers$set("public", "cleanByAmelia", function(data = "tbl_df", progress = "Progress"){
@@ -509,13 +680,48 @@ pgu.outliers$set("public", "cleanByAmelia", function(data = "tbl_df", progress =
   return(data)
 })
 
+pgu.outliers$set("public", "cleanByAmeliaBound", function(data = "tbl_df", progress = "Progress"){
+  if(("shiny" %in% (.packages())) & (class(progress)[1] == "Progress")){
+    progress$inc(length(self$imputationParameter[["features"]]))
+  }
+  tblBounds = data.frame(column=c(1:ncol(data)),
+                         lower=c(0),
+                         upper=sapply(data,stats::quantile,probs = c(0.25),names=FALSE, na.rm = TRUE)) %>%
+    as.matrix()
+  ameliaOutput <- data %>%
+    Amelia::amelia(m = 1,bounds=tblBounds, parallel = "multicore", ncpus = 8)
+  cleanedData <- ameliaOutput$imputations[[1]] %>%
+    tibble::as_tibble()
+  
+  for (feature in self$outliersParameter[["features"]]){
+    if(("shiny" %in% (.packages())) & (class(progress)[1] == "Progress")){
+      progress$inc(1)
+    }
+    indices <- self$outliersIdxByFeature(feature)
+    data %>%
+      dplyr::slice(indices) %>%
+      dplyr::pull(feature)
+    
+    data <- data %>%
+      dplyr::mutate(!!feature := replace(!!as.name(feature),
+                                         indices,
+                                         cleanedData %>%
+                                           dplyr::slice(indices) %>%
+                                           dplyr::pull(feature)))
+  }
+  return(data)
+})
+
+
 # output function
-pgu.outliers$set("public", "DataTable", function(data = "tbl_df"){
+pgu.outliers$set("public", "dataTable", function(data = "tbl_df"){
   t <- data %>%
     dplyr::mutate_if(is.numeric, round, 3) %>%
-    DT::datatable(options = list(scrollX = TRUE,
-                                scrollY = '350px',
-                                paging = FALSE))
+    DT::datatable(
+      options = list(scrollX = TRUE,
+                    scrollY = '350px',
+                    paging = FALSE)
+      )
   for (featureName in self$outliersParameter[["features"]]){
     featureOutlier <- self$outliers %>%
       dplyr::filter(grepl(featureName, feature)) %>%
@@ -578,6 +784,7 @@ pgu.outliers$set("public", "plotOutliersDistribution", function(){
 })
 
 pgu.outliers$set("public", "featureBarPlot", function(data = "tbl_df", feature = "character"){
+  feature <- sym(feature)
   p <- data %>%
     ggplot2::ggplot(mapping = ggplot2::aes_string(x=feature), na.rm=TRUE) +
     ggplot2::geom_bar(stat = "bin")
